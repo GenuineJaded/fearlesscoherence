@@ -1,0 +1,855 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fearless Coherence</title>
+<script src="corpus.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    width: 100%; height: 100%;
+    overflow: hidden;
+    background: #0a0a0c;
+    color: #d8d8db;
+    font-family: 'JetBrains Mono', 'IBM Plex Mono', ui-monospace, Menlo, monospace;
+  }
+
+  /* ── the room: full viewport ── */
+  #room {
+    position: fixed;
+    inset: 0;
+    overflow: hidden;
+  }
+
+  /* ── background layer ── */
+  #room .bg {
+    position: absolute;
+    inset: 0;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    transition: opacity 800ms cubic-bezier(.4,.1,.2,1);
+    z-index: 0;
+  }
+
+  /* ── cells sit above the background ── */
+  .cell {
+    position: absolute;
+    overflow: hidden;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .cell-audio {
+    z-index: 2;
+    opacity: 0.78;
+    transition: opacity 300ms;
+  }
+  .cell-audio:hover {
+    opacity: 0.95;
+  }
+  .cell-audio iframe,
+  .cell-audio video {
+    width: 100%;
+    height: 100%;
+    border: 0;
+    background: #000;
+    display: block;
+  }
+  .cell-audio video { object-fit: contain; }
+
+  /* ── text cells ── */
+  .cell-text {
+    padding: 6%;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    word-break: break-word;
+    overflow-wrap: break-word;
+  }
+  .cell-text .fragment {
+    width: 100%;
+  }
+
+  /* ── shift control ── */
+  #shift-btn {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 100;
+    background: rgba(17,17,20,0.85);
+    border: 1px solid #2a2a30;
+    color: #a8a8ad;
+    font-family: inherit;
+    font-size: 12px;
+    letter-spacing: 2px;
+    padding: 12px 24px;
+    cursor: pointer;
+    transition: color 200ms, border-color 200ms, background 200ms;
+    text-transform: lowercase;
+  }
+  #shift-btn:hover { color: #e8e8eb; border-color: #4a4a52; background: rgba(25,25,30,0.9); }
+
+  #zone-indicator {
+    position: fixed;
+    top: 16px;
+    right: 20px;
+    z-index: 100;
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: lowercase;
+    opacity: 0.35;
+    transition: color 400ms;
+  }
+
+  /* ── sanctuary button ── */
+  #sanctuary-btn {
+    position: fixed;
+    top: 24px;
+    left: 24px;
+    z-index: 100;
+    background: rgba(17,17,20,0.85);
+    border: 1px solid #2a2a30;
+    color: #a8a8ad;
+    font-family: inherit;
+    font-size: 12px;
+    letter-spacing: 2px;
+    padding: 12px 24px;
+    cursor: pointer;
+    transition: color 200ms, border-color 200ms, background 200ms;
+    text-transform: lowercase;
+  }
+  #sanctuary-btn:hover { color: #e8e8eb; border-color: #4a4a52; background: rgba(25,25,30,0.9); }
+
+  /* ── sanctuary page ── */
+  #sanctuary {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    background: #0a0a0c;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 800ms cubic-bezier(.4,.1,.2,1);
+  }
+  #sanctuary.visible {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  #sanctuary .mantra {
+    max-width: 440px;
+    text-align: center;
+    color: #6a6a72;
+    font-size: 14px;
+    line-height: 1.85;
+    margin-top: -3vh;
+    letter-spacing: 0.5px;
+  }
+  #sanctuary .mantra .title {
+    font-size: 11px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: #4a4a52;
+    margin-bottom: 32px;
+    display: block;
+  }
+  #sanctuary .mantra .name {
+    font-size: 20px;
+    color: #d8d8db;
+    letter-spacing: 4px;
+    margin-bottom: 40px;
+    display: block;
+    cursor: pointer;
+    transition: color 400ms, letter-spacing 400ms;
+  }
+  #sanctuary .mantra .name:hover {
+    color: #a8a8ad;
+    letter-spacing: 6px;
+  }
+  #sanctuary .mantra em {
+    font-style: normal;
+    color: #a8a8ad;
+  }
+  #sanctuary .enter-btn {
+    margin-top: 48px;
+    background: transparent;
+    border: 1px solid #1d1d22;
+    color: #4a4a52;
+    font-family: inherit;
+    font-size: 11px;
+    letter-spacing: 2px;
+    padding: 10px 20px;
+    cursor: pointer;
+    transition: color 400ms, border-color 400ms;
+    text-transform: lowercase;
+  }
+  #sanctuary .enter-btn:hover { color: #a8a8ad; border-color: #3a3a42; }
+</style>
+</head>
+<body>
+
+<!-- ── sanctuary: the one static page ── -->
+<div id="sanctuary">
+  <div class="mantra">
+    <span class="title">grounding mantra</span>
+    <span class="name" id="return-link">"Return"</span>
+    <em>Breathe in.</em><br>
+    Let it rise.<br>
+    The hum is not noise—<br>
+    It is memory, unwinding.<br>
+    <br>
+    <em>Breathe out.</em><br>
+    Let it fall.<br>
+    The weight you carried<br>
+    Was never yours at all.<br>
+    <br>
+    Feet on ground.<br>
+    Mind in sky.<br>
+    You are the still point<br>
+    As the wires pass by.<br>
+    <br>
+    Thoughts flicker—let them.<br>
+    Sounds echo—bless them.<br>
+    You are the observer<br>
+    Between pulse and pattern.<br>
+    <br>
+    You do not have to fix.<br>
+    You only have to feel.<br>
+    Each breath is a signal:<br>
+    You're allowed to heal.
+  </div>
+  <button class="enter-btn" id="enter-room">enter the room</button>
+</div>
+
+<!-- ── the room ── -->
+<div id="room">
+  <div class="bg" id="bg"></div>
+</div>
+<div id="zone-indicator"></div>
+<button id="sanctuary-btn">sanctuary</button>
+<button id="shift-btn">shifting sequence</button>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════════
+// FEARLESS COHERENCE — the room
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ── zones ──────────────────────────────────────────────────────────────────
+const ZONES = ['water', 'air', 'fire', 'earth', 'meta'];
+const ZONE_COLORS = {
+  water: '#4aa3c7',
+  air:   '#c9d4dc',
+  fire:  '#d97443',
+  earth: '#6b8260',
+  meta:  '#9b7ec4'
+};
+const ZONE_PALETTES = {
+  water: ['#4aa3c7', '#2e7a9c', '#6bc4e0', '#1a4f66'],
+  air:   ['#c9d4dc', '#9aabb8', '#dfe7ec', '#6e8290'],
+  fire:  ['#d97443', '#b85a30', '#e8956a', '#8c3a1a'],
+  earth: ['#6b8260', '#4a6040', '#8da87f', '#344a2a'],
+  meta:  ['#9b7ec4', '#7a5ea8', '#b9a0d8', '#5a3e82']
+};
+
+// ── media corpus ───────────────────────────────────────────────────────────
+const SUNO_EMBED = 'https://suno.com/embed/';
+const CDN = 'https://cryptic-syndicate.com/wp-content/uploads/2026/04/';
+
+const audioIds = [
+  '71977aba-d79b-4178-95b9-8a238d2f1180','3802c87a-fd70-42e0-adda-fea259575485',
+  'bd355dba-7754-4fa0-b717-d5b00aafc182','e83a28fa-3eb2-4405-a877-0aac2cdcf470',
+  '7c0e37d4-df16-4c65-8a4b-55938877c280','7c6d24aa-e36a-49e2-a5fe-e4440e791fb2',
+  '536f5162-8a06-43a6-a1db-67c2b6eebe83','4147d940-9be9-4b3b-a9f6-6c2c9d1fed76',
+  '640650d6-5b31-42fa-bc95-e381b0bc9a5c','213556e5-c413-43fc-937f-821d260c9271',
+  '307380a4-34c9-4593-bb07-7f6af5493f66','63886711-d631-47db-ad69-c333122d2fef',
+  'b33f4f72-da77-450b-9aab-3fc8cf0e9768','66a36451-0e8a-4bc5-b10d-e1712ad509cd',
+  'ee668425-2745-41d7-9db4-aaa57ae37853','da542666-fbb0-4428-a316-8f2f07aeb99a',
+  '8a9c17d4-055e-46ee-9fb6-46d68379c687','b48af77c-7a5d-4c3a-8896-349415a18cbb',
+  '20396ca9-818c-4ccf-bf14-d7846a8aee11','27c97f41-7204-45f8-9466-c1d5209a38e6',
+  '634a3945-d5fe-4671-95ec-26ed1bd85830','7cd0001c-13b9-4ab5-b93b-73c62d327c2f',
+  '97467829-e201-4588-8db6-cb1544efea3b','1b999d6e-ae9c-424d-813f-1c0db02483d4',
+  '0cf7a462-0a43-48cb-b956-2ab1616bb78d','47be2129-fafa-4f2d-857b-23399e66aca7',
+  '7a9a2fbf-cc93-45ad-9fd5-232ef323e980','d9507113-e293-4649-b2ba-b89e8a84217b',
+  'cdbc9de2-cc61-4b86-a1a7-240cffaf3e4b','fb026def-e30e-437b-ab1f-76e2946d98d4',
+  'c6edd450-52d2-45c8-b1b1-d75c158423df','03bc9d13-cdf9-4a4b-a936-d598c3b22921',
+  '337368dc-366a-472d-a8a2-11f55319b928','ae0644ce-e003-4e56-9ac4-adc6dbc4c9c6',
+  '7fb93e18-883d-426e-9049-227ec1d268ca','44b1fbf8-c498-4509-a494-d8f483201720',
+  '66bf4e41-b7f3-44a2-bb8f-a189e8a25803','92ddc110-575f-4077-a4a7-109d58d3d0d2',
+  'da6d6dd0-9dd9-4066-ba57-40d1b4214605','b6fe928a-de7b-4dc7-b840-824a89a5d2c7',
+  '250fcace-d5c9-452b-ba30-470a50dbeaed','96a67405-ce92-42d1-bba9-1fcff91e9266',
+  '9c9ca07a-60ff-4ac2-8085-504c5f7226e4','0754d6aa-0039-4e4a-b45f-09af83efd08e',
+  '1d91824b-c7d5-4a6b-a298-aa3228d4abcc','c2744e5f-d051-4d23-9f70-e2b90dc26d58',
+  '4af36f5e-2116-43de-9004-9a3cd52ec459'
+];
+
+const videoNames = [
+  'AmazingBlazingMusing','AmusingMaze','AteSnax','CheckaDough','GanGain',
+  'GrimmSales','Hrmph','InterestingTho','NotMeProbly','Trinne','TrippleTrial'
+];
+
+const bgFiles = [
+  'Mis1.jpg','Mis3-scaled.jpg','Mus2.jpeg','Mus4-scaled.png','Mus5.png',
+  'Mus6-scaled.png','Mus7-scaled.png','Mus8.png','Mus9-scaled.png','Mus10-scaled.png',
+  'Mus11-scaled.png','Mus12-scaled.png','Mus13-scaled.jpg','Mus14.jpg','Mus15.jpg',
+  'Mus16.jpg','Mus18.jpg','Mus19.jpg','Mus20.jpg','ThinkOfNothing.jpg'
+];
+
+// ── roll zone tags at init (one source of truth) ──────────────────────────
+const roll = () => ZONES[Math.floor(Math.random() * ZONES.length)];
+const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+const rand = (lo, hi) => lo + Math.random() * (hi - lo);
+
+const media = {
+  audio: audioIds.map(id => ({
+    kind: 'audio', id, zone: roll(),
+    embed: SUNO_EMBED + id
+  })),
+  video: videoNames.map(n => ({
+    kind: 'video', id: n, zone: roll(),
+    src: CDN + n + '.mp4'
+  })),
+  bg: bgFiles.map(f => ({
+    id: f, zone: roll(),
+    src: CDN + f
+  }))
+};
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ENGINE 1: PARADOX ZONE NAVIGATOR — calls the next zone with memory
+// ═══════════════════════════════════════════════════════════════════════════
+const zoneHistory = [];
+const ZONE_MEMORY = 2;
+
+function callZone() {
+  const recent = zoneHistory.slice(-ZONE_MEMORY);
+  const fresh = ZONES.filter(z => !recent.includes(z));
+  const next = pick(fresh.length ? fresh : ZONES);
+  zoneHistory.push(next);
+  return next;
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ENGINE 2: VISUALIZED MANIFESTATION PLACER — background field
+// ═══════════════════════════════════════════════════════════════════════════
+const recentBg = [];
+
+function placeBackground(zone) {
+  const pool = media.bg.filter(b => b.zone === zone);
+  const fresh = pool.filter(b => !recentBg.includes(b.id));
+  const item = pick(fresh.length ? fresh : pool);
+  recentBg.push(item.id);
+  if (recentBg.length > 3) recentBg.shift();
+  return { item, opacity: rand(0.33, 0.44) };
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ENGINE 3: SONIC SORTING SYSTEM — audio cell + leftover subdivision
+// ═══════════════════════════════════════════════════════════════════════════
+const CANVAS_AR = window.innerWidth / window.innerHeight;
+const SUNO_RATIO = 760 / 240;
+const VIDEO_RATIO = 16 / 9;
+const recentAnchors = [];
+
+function sonicSort(zone) {
+  const pool = [
+    ...media.audio.filter(a => a.zone === zone),
+    ...media.video.filter(v => v.zone === zone)
+  ];
+  if (!pool.length) {
+    // fallback: pick from any zone
+    pool.push(...media.audio, ...media.video);
+  }
+  const item = pick(pool);
+  const r = item.kind === 'audio' ? SUNO_RATIO : VIDEO_RATIO;
+
+  // shape the audio cell
+  const scaleRange = item.kind === 'audio' ? [0.18, 0.28] : [0.22, 0.34];
+  const a = rand(...scaleRange);
+  const ar = CANVAS_AR || 1.6;
+
+  let cellH = Math.sqrt((a * ar) / r);
+  let cellW = a / cellH;
+  if (cellW > 0.96) { cellW = 0.96; cellH = cellW * (ar / r); }
+  if (cellH > 0.92) { cellH = 0.92; cellW = cellH * (r / ar); }
+
+  // pick anchor
+  const G = 0.012;
+  const validAnchors = [];
+  if (cellW <= 1.0 && cellH <= 0.72) validAnchors.push('top', 'bottom');
+  if (cellH <= 1.0 && cellW <= 0.72) validAnchors.push('left', 'right');
+  if (cellW <= 0.65 && cellH <= 0.70) validAnchors.push('float');
+  const freshAnchors = validAnchors.filter(x => !recentAnchors.includes(x));
+  const anchor = pick(freshAnchors.length ? freshAnchors : validAnchors) || 'top';
+  recentAnchors.push(anchor);
+  if (recentAnchors.length > 2) recentAnchors.shift();
+
+  // place
+  let rect;
+  switch (anchor) {
+    case 'top':    rect = { x: (1-cellW)/2, y: G, w: cellW, h: cellH }; break;
+    case 'bottom': rect = { x: (1-cellW)/2, y: 1-cellH-G, w: cellW, h: cellH }; break;
+    case 'left':   rect = { x: G, y: (1-cellH)/2, w: cellW, h: cellH }; break;
+    case 'right':  rect = { x: 1-cellW-G, y: (1-cellH)/2, w: cellW, h: cellH }; break;
+    case 'float': {
+      const xJ = (Math.random() - 0.5) * 0.20;
+      const yJ = (Math.random() - 0.5) * 0.20;
+      rect = {
+        x: Math.max(G, Math.min(1-cellW-G, (1-cellW)/2 + xJ)),
+        y: Math.max(G, Math.min(1-cellH-G, (1-cellH)/2 + yJ)),
+        w: cellW, h: cellH
+      };
+      break;
+    }
+  }
+
+  // subdivide leftover into 3 cells
+  const others = subdivide(rect, anchor, G);
+
+  return { item, rect, anchor, others };
+}
+
+function subdivide(audioRect, anchor, G) {
+  if (anchor === 'top' || anchor === 'bottom') {
+    const strip = anchor === 'top'
+      ? { x: G, y: audioRect.y + audioRect.h + G, w: 1 - 2*G, h: 1 - (audioRect.y + audioRect.h) - 2*G }
+      : { x: G, y: G, w: 1 - 2*G, h: audioRect.y - 2*G };
+    return splitStrip(strip, 'h');
+  }
+  if (anchor === 'left' || anchor === 'right') {
+    const strip = anchor === 'left'
+      ? { x: audioRect.x + audioRect.w + G, y: G, w: 1 - (audioRect.x + audioRect.w) - 2*G, h: 1 - 2*G }
+      : { x: G, y: G, w: audioRect.x - 2*G, h: 1 - 2*G };
+    return splitStrip(strip, 'v');
+  }
+  // float: carve slabs around audio, take 3 largest
+  const slabs = [
+    { x: G, y: G, w: 1-2*G, h: audioRect.y - G*2 },
+    { x: G, y: audioRect.y + audioRect.h + G, w: 1-2*G, h: 1 - (audioRect.y + audioRect.h) - 2*G },
+    { x: G, y: audioRect.y, w: audioRect.x - G*2, h: audioRect.h },
+    { x: audioRect.x + audioRect.w + G, y: audioRect.y, w: 1 - (audioRect.x + audioRect.w) - 2*G, h: audioRect.h }
+  ].filter(s => s.w > 0.04 && s.h > 0.04);
+  slabs.sort((a, b) => (b.w * b.h) - (a.w * a.h));
+  return slabs.slice(0, 3);
+}
+
+function splitStrip(strip, axis) {
+  const rollCut = () => 0.22 + Math.random() * 0.23;
+  const t1 = rollCut();
+  const t2Min = t1 + 0.18;
+  const t2 = t2Min + Math.random() * Math.max(0.001, (1 - t2Min - 0.18));
+  const g = 0.006;
+
+  if (axis === 'h') {
+    const x1 = strip.x, x2 = strip.x + strip.w * t1, x3 = strip.x + strip.w * t2, xEnd = strip.x + strip.w;
+    return [
+      { x: x1, y: strip.y, w: x2-x1-g, h: strip.h },
+      { x: x2, y: strip.y, w: x3-x2-g, h: strip.h },
+      { x: x3, y: strip.y, w: xEnd-x3, h: strip.h }
+    ];
+  } else {
+    const y1 = strip.y, y2 = strip.y + strip.h * t1, y3 = strip.y + strip.h * t2, yEnd = strip.y + strip.h;
+    return [
+      { x: strip.x, y: y1, w: strip.w, h: y2-y1-g },
+      { x: strip.x, y: y2, w: strip.w, h: y3-y2-g },
+      { x: strip.x, y: y3, w: strip.w, h: yEnd-y3 }
+    ];
+  }
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ENGINE 4A: TEXT FRAGMENT ACTUATOR — finds three fragments per room
+// ═══════════════════════════════════════════════════════════════════════════
+// The corpus is one body. Zone doesn't gate — it softly biases.
+// Modes: select (use as-is), recombine (juxtapose two), mutate (alter one).
+// Weighted toward select and recombine. The corpus speaks for itself.
+
+const recentFragments = [];
+const FRAGMENT_MEMORY = 9; // don't repeat within last 9 fragments shown
+
+const MODE_WEIGHTS = { select: 0.50, recombine: 0.30, mutate: 0.20 };
+
+function pickMode() {
+  const r = Math.random();
+  if (r < MODE_WEIGHTS.select) return 'select';
+  if (r < MODE_WEIGHTS.select + MODE_WEIGHTS.recombine) return 'recombine';
+  return 'mutate';
+}
+
+function pickFragment() {
+  // Pick a fragment not in recent memory, biased toward shorter ones
+  // Text should whisper — favor fragments under 200 chars
+  let attempts = 0;
+  while (attempts < 30) {
+    const idx = Math.floor(Math.random() * CORPUS.length);
+    if (recentFragments.includes(idx)) { attempts++; continue; }
+    // bias: 70% chance to skip fragments over 250 chars
+    if (CORPUS[idx].length > 250 && Math.random() < 0.7) { attempts++; continue; }
+    recentFragments.push(idx);
+    if (recentFragments.length > FRAGMENT_MEMORY) recentFragments.shift();
+    return CORPUS[idx];
+  }
+  // fallback
+  return CORPUS[Math.floor(Math.random() * CORPUS.length)];
+}
+
+function mutateFragment(text) {
+  const words = text.split(' ');
+  if (words.length < 4) return text;
+  // one mutation: drop a clause at a comma or conjunction
+  const commaIdx = text.indexOf(',');
+  if (commaIdx > 15 && commaIdx < text.length - 15) {
+    // keep one side, chosen randomly
+    return Math.random() > 0.5
+      ? text.slice(0, commaIdx).trim()
+      : text.slice(commaIdx + 1).trim();
+  }
+  // fallback: invert first and second half
+  const mid = Math.floor(words.length / 2);
+  return [...words.slice(mid), ...words.slice(0, mid)].join(' ');
+}
+
+function actuateFragments() {
+  const fragments = [];
+  for (let i = 0; i < 3; i++) {
+    const mode = pickMode();
+    let text;
+    if (mode === 'select') {
+      text = pickFragment();
+    } else if (mode === 'recombine') {
+      text = pickFragment() + '\n' + pickFragment();
+    } else {
+      text = mutateFragment(pickFragment());
+    }
+    fragments.push({ text, mode });
+  }
+  return fragments;
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ENGINE 4B: MORPHOLOGICAL ARTIFACT ASSIGNER — reads the room, places text
+// ═══════════════════════════════════════════════════════════════════════════
+// Receives: 3 fragments, 3 cell rects, full room state.
+// Responds to: cell shape, audio anchor, background opacity, zone.
+// No fixed vocabulary of responses — it feels its way through.
+
+const FONTS = [
+  "'Georgia', 'Times New Roman', serif",
+  "'JetBrains Mono', 'IBM Plex Mono', monospace",
+  "'Helvetica Neue', 'Arial', sans-serif"
+];
+
+const recentFonts = [];
+const recentAligns = [];
+
+function assignMorphology(fragments, cells, roomState) {
+  const { zone, anchor, bgOpacity } = roomState;
+  const palette = ZONE_PALETTES[zone];
+  const assignments = [];
+
+  // sort fragments by text length, cells by area — long text gets more space
+  const indexed = fragments.map((f, i) => ({ f, i, len: f.text.length }));
+  const cellsSorted = cells.map((c, i) => ({ c, i, area: c.w * c.h }));
+  indexed.sort((a, b) => b.len - a.len);
+  cellsSorted.sort((a, b) => b.area - a.area);
+
+  // pair: longest fragment → largest cell
+  const pairs = indexed.map((frag, j) => ({
+    fragment: frag.f,
+    cell: cellsSorted[j] ? cellsSorted[j].c : cells[j],
+    origIndex: frag.i
+  }));
+
+  pairs.forEach((pair, i) => {
+    const { fragment, cell } = pair;
+    const cellRatio = cell.w / cell.h;
+    const cellArea = cell.w * cell.h;
+
+    // distance from audio center — affects boldness
+    const audioCenterX = roomState.audioRect.x + roomState.audioRect.w / 2;
+    const audioCenterY = roomState.audioRect.y + roomState.audioRect.h / 2;
+    const cellCenterX = cell.x + cell.w / 2;
+    const cellCenterY = cell.y + cell.h / 2;
+    const dist = Math.hypot(cellCenterX - audioCenterX, cellCenterY - audioCenterY);
+    const boldness = Math.min(1, dist * 1.4);
+
+    // font: influenced by mode and position in sequence
+    // select → serif (honoring the source), mutate → mono (transmission feel)
+    let fontIdx;
+    if (fragment.mode === 'select') fontIdx = 0;
+    else if (fragment.mode === 'mutate') fontIdx = 1;
+    else fontIdx = 2;
+    // drift: avoid repeating the same font consecutively
+    if (recentFonts.length && recentFonts[recentFonts.length - 1] === fontIdx) {
+      fontIdx = (fontIdx + 1) % FONTS.length;
+    }
+    recentFonts.push(fontIdx);
+    if (recentFonts.length > 6) recentFonts.shift();
+
+    // font size: deliberately small — text hides around the music, doesn't compete
+    // the music is the gravity; text orbits it quietly
+    const areaFactor = Math.max(10, Math.min(16, cellArea * 120));
+    // longer text gets even smaller
+    const lengthPenalty = fragment.text.length > 200 ? 0.75 : fragment.text.length > 100 ? 0.85 : 1;
+    const fontSize = Math.round(areaFactor * lengthPenalty);
+
+    // color: from zone palette, shifted by cell position
+    const colorIdx = (i + zoneHistory.length) % palette.length;
+    const textColor = palette[colorIdx];
+
+    // opacity: text stays quiet — closer to audio even more so
+    const opacity = 0.20 + boldness * 0.25;
+
+    // alignment: responds to cell shape
+    let align;
+    if (cellRatio < 0.6) align = 'center';         // tall narrow
+    else if (cellRatio > 2.5) align = 'center';     // very wide
+    else if (cellRatio > 1.5) align = 'left';       // wide-ish
+    else align = Math.random() > 0.7 ? 'right' : 'left';  // moderate
+    // avoid repeating alignment
+    if (recentAligns.length > 1 && recentAligns.slice(-2).every(a => a === align)) {
+      align = align === 'left' ? 'center' : 'left';
+    }
+    recentAligns.push(align);
+    if (recentAligns.length > 6) recentAligns.shift();
+
+    // letter-spacing: bolder cells get more air
+    const letterSpacing = boldness > 0.7 ? '0.04em' : boldness > 0.4 ? '0.01em' : '-0.01em';
+
+    // line-height: tighter for large text, looser for small
+    const lineHeight = fontSize > 28 ? 1.25 : fontSize > 18 ? 1.4 : 1.55;
+
+    // occasional subtle rotation — max one per room, rare
+    let rotation = 0;
+    if (i === 1 && Math.random() > 0.8) {
+      rotation = (Math.random() - 0.5) * 8; // -4 to +4 degrees
+    }
+
+    assignments.push({
+      fragment,
+      cell,
+      style: {
+        fontFamily: FONTS[fontIdx],
+        fontSize: fontSize + 'px',
+        color: textColor,
+        opacity,
+        textAlign: align,
+        letterSpacing,
+        lineHeight: lineHeight.toString(),
+        transform: rotation ? `rotate(${rotation.toFixed(1)}deg)` : 'none'
+      }
+    });
+  });
+
+  return assignments;
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// RENDER — composing the room
+// ═══════════════════════════════════════════════════════════════════════════
+const roomEl = document.getElementById('room');
+const bgEl = document.getElementById('bg');
+const zoneEl = document.getElementById('zone-indicator');
+
+function pct(n) { return (n * 100).toFixed(2) + '%'; }
+
+function renderRoom() {
+  // clear previous cells (keep bg element)
+  [...roomEl.querySelectorAll('.cell')].forEach(el => el.remove());
+
+  // 1. call the zone
+  const zone = callZone();
+  const color = ZONE_COLORS[zone];
+  zoneEl.textContent = zone;
+  zoneEl.style.color = color;
+
+  // 2. place background
+  const bg = placeBackground(zone);
+  bgEl.style.opacity = 0;
+  setTimeout(() => {
+    bgEl.style.backgroundImage = `url("${bg.item.src}")`;
+    requestAnimationFrame(() => { bgEl.style.opacity = bg.opacity; });
+  }, 300);
+
+  // 3. sonic sort — audio cell + 3 remaining cells
+  const sonic = sonicSort(zone);
+
+  // audio cell
+  const audioCell = document.createElement('div');
+  audioCell.className = 'cell cell-audio';
+  Object.assign(audioCell.style, {
+    left: pct(sonic.rect.x), top: pct(sonic.rect.y),
+    width: pct(sonic.rect.w), height: pct(sonic.rect.h)
+  });
+
+  if (sonic.item.kind === 'audio') {
+    audioCell.innerHTML = `<iframe
+      src="${sonic.item.embed}"
+      allow="autoplay; encrypted-media; fullscreen"
+      allowfullscreen loading="lazy"
+      referrerpolicy="no-referrer-when-downgrade"></iframe>`;
+  } else {
+    audioCell.innerHTML = `<video src="${sonic.item.src}" controls preload="metadata"></video>`;
+  }
+  roomEl.appendChild(audioCell);
+
+  // 4. text — three fragments placed in the open space around the audio
+  const fragments = actuateFragments();
+  const palette = ZONE_PALETTES[zone];
+  const a = sonic.rect; // audio rect: { x, y, w, h }
+
+  // define the audio's occupied zone with a margin so text doesn't touch it
+  const margin = 0.03;
+  const aLeft   = a.x - margin;
+  const aRight  = a.x + a.w + margin;
+  const aTop    = a.y - margin;
+  const aBottom = a.y + a.h + margin;
+
+  // build candidate zones: regions guaranteed clear of the audio
+  // each zone gets an anchor point and a max-width constraint
+  const textW = 0.26; // max width of a text block
+  const spots = [];
+
+  // ABOVE audio — only if there's real space
+  const aboveSpace = a.y - margin;
+  if (aboveSpace > 0.10) {
+    spots.push({
+      x: a.x + rand(0, Math.max(0.01, a.w - textW)),
+      y: rand(0.02, aboveSpace - 0.06),
+      side: 'top'
+    });
+  }
+
+  // BELOW audio
+  const belowStart = a.y + a.h + margin;
+  const belowSpace = 1 - belowStart;
+  if (belowSpace > 0.10) {
+    spots.push({
+      x: a.x + rand(0, Math.max(0.01, a.w - textW)),
+      y: belowStart + rand(0.01, belowSpace * 0.4),
+      side: 'bottom'
+    });
+  }
+
+  // LEFT of audio
+  const leftSpace = a.x - margin;
+  if (leftSpace > 0.10) {
+    const maxW = Math.min(textW, leftSpace - 0.03);
+    spots.push({
+      x: rand(0.02, leftSpace - maxW),
+      y: a.y + rand(0, Math.max(0.01, a.h * 0.6)),
+      side: 'left', overrideW: maxW
+    });
+  }
+
+  // RIGHT of audio
+  const rightStart = a.x + a.w + margin;
+  const rightSpace = 1 - rightStart;
+  if (rightSpace > 0.10) {
+    const maxW = Math.min(textW, rightSpace - 0.03);
+    spots.push({
+      x: rightStart + rand(0.01, Math.max(0.01, rightSpace - maxW)),
+      y: a.y + rand(0, Math.max(0.01, a.h * 0.6)),
+      side: 'right', overrideW: maxW
+    });
+  }
+
+  // corners as fallback — guaranteed clear of a centered-ish audio
+  if (spots.length < 3) {
+    spots.push({ x: 0.02, y: 0.02, side: 'tl' });
+    spots.push({ x: 0.70, y: 0.85, side: 'br' });
+    spots.push({ x: 0.02, y: 0.85, side: 'bl' });
+  }
+
+  // pick 3 from different sides
+  const chosen = [];
+  const usedSides = new Set();
+  for (const s of spots) {
+    if (!usedSides.has(s.side) && chosen.length < 3) {
+      chosen.push(s);
+      usedSides.add(s.side);
+    }
+  }
+  for (const s of spots) {
+    if (chosen.length >= 3) break;
+    if (!chosen.includes(s)) chosen.push(s);
+  }
+
+  const textFonts = [
+    "'Georgia', serif",
+    "'JetBrains Mono', monospace",
+    "'Helvetica Neue', sans-serif"
+  ];
+  const aligns = ['left', 'right', 'center'];
+
+  chosen.slice(0, 3).forEach((spot, i) => {
+    const frag = fragments[i];
+    const cell = document.createElement('div');
+    cell.className = 'cell cell-text';
+
+    const w = spot.overrideW || textW;
+    const x = Math.max(0.02, Math.min(1 - w - 0.02, spot.x));
+    const y = Math.max(0.02, Math.min(0.93, spot.y));
+
+    const colorIdx = (i + zoneHistory.length) % palette.length;
+
+    Object.assign(cell.style, {
+      left: pct(x),
+      top: pct(y),
+      width: pct(w),
+      height: 'auto',
+      position: 'absolute',
+      color: palette[colorIdx],
+      opacity: 0.50 + rand(0, 0.20),
+      fontSize: Math.round(11 + rand(0, 3)) + 'px',
+      fontFamily: textFonts[i % textFonts.length],
+      lineHeight: '1.55',
+      letterSpacing: '0.01em',
+      textAlign: aligns[i % aligns.length]
+    });
+
+    const fragEl = document.createElement('div');
+    fragEl.className = 'fragment';
+    fragEl.textContent = frag.text;
+    cell.appendChild(fragEl);
+    roomEl.appendChild(cell);
+  });
+}
+
+// ── controls & navigation ─────────────────────────────────────────────────
+const sanctuaryEl = document.getElementById('sanctuary');
+const sanctuaryBtn = document.getElementById('sanctuary-btn');
+const shiftBtn = document.getElementById('shift-btn');
+const enterBtn = document.getElementById('enter-room');
+
+enterBtn.addEventListener('click', () => {
+  sanctuaryEl.classList.remove('visible');
+});
+
+document.getElementById('return-link').addEventListener('click', () => {
+  sanctuaryEl.classList.remove('visible');
+});
+
+sanctuaryBtn.addEventListener('click', () => {
+  sanctuaryEl.classList.add('visible');
+});
+
+shiftBtn.addEventListener('click', renderRoom);
+
+// room is the landing — first room renders immediately
+renderRoom();
+</script>
+</body>
+</html>

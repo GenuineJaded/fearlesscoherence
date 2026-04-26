@@ -1,0 +1,6 @@
+services:
+  - type: web
+    name: fearless-coherence
+    runtime: static
+    buildCommand: echo "Publishing Fearless Coherence"
+    staticPublishPath: ./
