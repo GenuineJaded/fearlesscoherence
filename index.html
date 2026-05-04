@@ -616,17 +616,7 @@ function subdivide(audioRect, anchor, G) {
   });
   pockets.sort((a, b) => b.score - a.score);
 
-  const chosen = [];
-  pockets.forEach(pocket => {
-    if (chosen.length >= 3) return;
-    const sideAlreadyUsed = chosen.some(c => c.side === pocket.side);
-    if (!sideAlreadyUsed || chosen.length > 1 || Math.random() < 0.24) chosen.push(pocket);
-  });
-  pockets.forEach(pocket => {
-    if (chosen.length < 3 && !chosen.includes(pocket)) chosen.push(pocket);
-  });
-
-  return chosen.length ? chosen : splitStrip({ x: G, y: G, w: 1 - 2 * G, h: 1 - 2 * G }, 'h');
+  return pockets.length ? pockets.slice(0, 9) : splitStrip({ x: G, y: G, w: 1 - 2 * G, h: 1 - 2 * G }, 'h');
 }
 
 function splitStrip(strip, axis) {
@@ -743,6 +733,40 @@ const ALIGNS = ['left', 'center', 'right'];
 const pickFrom = arr => arr[Math.floor(Math.random() * arr.length)];
 const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
 
+function centerOf(rect) {
+  return { x: rect.x + rect.w / 2, y: rect.y + rect.h / 2 };
+}
+
+function chooseTextPocket(glyph, candidates, placed, room, clusterMode, clusterSide) {
+  const audioCenter = centerOf(room.audioRect);
+  let best = candidates[0];
+  let bestScore = -Infinity;
+
+  candidates.forEach((cell, index) => {
+    const center = centerOf(cell);
+    const audioDistance = clamp(Math.hypot(center.x - audioCenter.x, center.y - audioCenter.y) / 0.72, 0, 1);
+    const nearestGlyph = placed.length
+      ? Math.min(...placed.map(other => Math.hypot(center.x - other.center.x, center.y - other.center.y)))
+      : 1;
+    const relationDistance = clamp(nearestGlyph / 0.34, 0, 1);
+    const edgeDepth = clamp(Math.min(cell.x, cell.y, 1 - cell.x - cell.w, 1 - cell.y - cell.h) / 0.18, 0, 1);
+    const area = cell.w * cell.h;
+    const sameSideCount = placed.filter(other => other.side === cell.side).length;
+    const sideAffinity = clusterMode && cell.side === clusterSide ? 0.36 : 0;
+    const spreadScore = clusterMode ? 1 - Math.abs(relationDistance - 0.42) : relationDistance;
+    const lengthFit = glyph.longForm ? audioDistance + (1 - edgeDepth) * 0.2 : 1 - Math.abs(audioDistance - 0.48);
+    const sidePenalty = !clusterMode && sameSideCount ? sameSideCount * 0.34 : 0;
+    const score = area * 1.4 + spreadScore * 0.9 + lengthFit * 0.5 + sideAffinity - sidePenalty + rand(-0.08, 0.08);
+
+    if (score > bestScore) {
+      bestScore = score;
+      best = { ...cell, center, audioDistance, relationDistance, edgeDepth, candidateIndex: index };
+    }
+  });
+
+  return best;
+}
+
 function targetTactile(glyphs, cells, room) {
   const palette = ZONE_PALETTES[room.zone];
 
@@ -753,9 +777,14 @@ function targetTactile(glyphs, cells, room) {
   // composition rolls — once per room
   const deepIdx = Math.floor(Math.random() * 3);
   const rotateIdx = Math.random() < 0.22 ? Math.floor(Math.random() * 3) : -1;
+  const clusterMode = Math.random() < 0.14;
+  const available = cells.length ? [...cells] : [{ x: 0.06, y: 0.16, w: 0.88, h: 0.68, side: 'field' }];
+  const clusterSide = clusterMode ? pickFrom(available).side : null;
+  const placed = [];
 
   return glyphs.map((glyph, i) => {
-    const cell = cells[i] || cells[0];
+    const cell = chooseTextPocket(glyph, available, placed, room, clusterMode, clusterSide);
+    available.splice(cell.candidateIndex, 1);
 
     // ─── size: emerges from filling the cell's actual area ───
     // each char ≈ 0.55em wide × 1.4em tall ≈ 0.77 em²
@@ -766,11 +795,9 @@ function targetTactile(glyphs, cells, room) {
     const words = text.split(/\s+/).filter(Boolean);
     const longest = words.reduce((max, word) => Math.max(max, word.length), 1);
     const audioCenterX = room.audioRect.x + room.audioRect.w / 2;
-    const audioCenterY = room.audioRect.y + room.audioRect.h / 2;
     const cellCenterX = cell.x + cell.w / 2;
-    const cellCenterY = cell.y + cell.h / 2;
-    const distance = clamp(Math.hypot(cellCenterX - audioCenterX, cellCenterY - audioCenterY) / 0.72, 0, 1);
-    const edgeDepth = clamp(Math.min(cell.x, cell.y, 1 - cell.x - cell.w, 1 - cell.y - cell.h) / 0.18, 0, 1);
+    const distance = cell.audioDistance;
+    const edgeDepth = cell.edgeDepth;
     const nearSong = 1 - distance;
     const edgeQuiet = 1 - edgeDepth;
     const lineHeight = 1.14 + Math.random() * 0.22;
@@ -780,13 +807,15 @@ function targetTactile(glyphs, cells, room) {
     const wordFit = (cellPxW * 0.86) / Math.max(longest * (0.56 + letterSpacing), 1);
     const heightFit = (cellPxH * 0.78) / (lineHeight * (glyph.longForm ? 2.7 : 1.8));
     let fontSize = Math.min(areaSize, wordFit, heightFit, glyph.longForm ? 44 : 52);
-    fontSize *= 0.78 + distance * 0.34;
+    fontSize *= 0.78 + distance * 0.34 - (clusterMode ? 0.08 : 0);
     fontSize = clamp(fontSize, 14, glyph.longForm ? 42 : 50);
     const align = cellCenterX < audioCenterX - 0.12 ? 'right'
       : cellCenterX > audioCenterX + 0.12 ? 'left'
       : pickFrom(ALIGNS);
     const opacityAgency = rand(-0.08, 0.08);
-    const opacity = clamp(0.58 + nearSong * 0.22 - edgeQuiet * 0.10 - (glyph.longForm ? 0.09 : 0) + opacityAgency, 0.42, 0.88);
+    const relationQuiet = clusterMode ? 0.06 : (1 - cell.relationDistance) * 0.10;
+    const opacity = clamp(0.58 + nearSong * 0.22 - edgeQuiet * 0.10 - relationQuiet - (glyph.longForm ? 0.09 : 0) + opacityAgency, 0.42, 0.88);
+    placed.push({ center: cell.center, side: cell.side });
 
     return {
       fragment: glyph,
