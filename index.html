@@ -46,14 +46,14 @@
 
   .cell-audio {
     z-index: 2;
-    opacity: 0.78;
+    opacity: 0.86;
     transition: opacity 300ms, transform 700ms cubic-bezier(.22,1,.36,1);
     backdrop-filter: blur(10px);
-    background: linear-gradient(180deg, rgba(8,8,10,0.82), rgba(18,18,24,0.56));
-    border: 1px solid rgba(120,120,140,0.12);
+    background: linear-gradient(180deg, rgba(8,8,10,0.42), rgba(18,18,24,0.22));
+    border: 1px solid rgba(120,120,140,0.08);
   }
   .cell-audio:hover {
-    opacity: 0.95;
+    opacity: 0.96;
   }
   .cell-audio iframe,
   .cell-audio video,
@@ -68,7 +68,8 @@
   .cell-audio.audio-shell {
     align-items: stretch;
     justify-content: stretch;
-    padding: 18px;
+    padding: 14px;
+    background: linear-gradient(180deg, rgba(8,8,10,0.36), rgba(18,18,24,0.16));
   }
   .audio-card {
     width: 100%;
@@ -82,35 +83,38 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
-    color: rgba(216,216,219,0.84);
+    color: rgba(232,232,236,0.94);
   }
   .audio-label {
     font-size: 10px;
     letter-spacing: 0.24em;
     text-transform: uppercase;
-    color: rgba(216,216,219,0.44);
+    color: rgba(232,232,236,0.58);
   }
   .audio-title {
     font-size: 14px;
     line-height: 1.35;
     letter-spacing: 0.08em;
+    color: rgba(245,245,248,0.96);
   }
   .cell-audio audio {
     background: transparent;
     min-height: 54px;
+    opacity: 0.92;
   }
   .cell-audio audio::-webkit-media-controls-panel {
-    background: rgba(12,12,16,0.82);
+    background: rgba(232,232,238,0.72);
   }
 
   /* ── text cells ── */
   .cell-text {
-    padding: 6%;
+    padding: clamp(14px, 2.2vmin, 34px);
     z-index: 3;
     display: flex;
     align-items: center;
-    word-break: break-word;
-    overflow-wrap: break-word;
+    word-break: normal;
+    overflow-wrap: normal;
+    hyphens: none;
     pointer-events: none;
     opacity: 0;
     transform: translateY(10px);
@@ -121,8 +125,9 @@
     transform: translateY(0);
   }
   .cell-text .fragment {
-    width: 100%;
-    white-space: pre-line;
+    max-width: 100%;
+    white-space: normal;
+    text-wrap: balance;
   }
 
   .cell-text::before {
@@ -495,7 +500,7 @@ function placeBackground(zone) {
 // ═══════════════════════════════════════════════════════════════════════════
 // ENGINE 3: SONIC SORTING SYSTEM — audio cell + leftover subdivision
 // ═══════════════════════════════════════════════════════════════════════════
-const SUNO_RATIO = 760 / 240;
+const AUDIO_RATIO = 760 / 240;
 const VIDEO_RATIO = 16 / 9;
 const recentAnchors = [];
 
@@ -509,10 +514,10 @@ function sonicSort(zone) {
     pool.push(...media.audio, ...media.video);
   }
   const item = pick(pool);
-  const r = item.kind === 'audio' ? SUNO_RATIO : VIDEO_RATIO;
+  const r = item.kind === 'audio' ? AUDIO_RATIO : VIDEO_RATIO;
 
   // shape the audio cell
-  const scaleRange = item.kind === 'audio' ? [0.18, 0.28] : [0.22, 0.34];
+  const scaleRange = item.kind === 'audio' ? [0.11, 0.18] : [0.22, 0.34];
   const a = rand(...scaleRange);
   const ar = (window.innerWidth / Math.max(window.innerHeight, 1)) || 1.6;
 
@@ -747,6 +752,7 @@ let currentMediaEl = null;
 let renderNonce = 0;
 let autoplayUnlocked = false;
 let allowAutoAdvance = false;
+let visitorStoppedChain = false;
 let autoAdvanceTimer = null;
 let pendingPlayTimer = null;
 
@@ -768,8 +774,16 @@ function setAutoAdvanceEnabled(enabled) {
 }
 
 function unlockAutoplayChain() {
+  visitorStoppedChain = false;
   autoplayUnlocked = true;
   allowAutoAdvance = true;
+}
+
+function stopAutoplayChain() {
+  visitorStoppedChain = true;
+  autoplayUnlocked = false;
+  allowAutoAdvance = false;
+  clearPlaybackTimers();
 }
 
 function stopCurrentMedia() {
@@ -862,11 +876,13 @@ function renderRoom(options = {}) {
   if (currentMediaEl) {
     currentMediaEl.onplay = () => {
       if (roomNonce !== renderNonce) return;
+      visitorStoppedChain = false;
+      autoplayUnlocked = true;
       allowAutoAdvance = true;
     };
     currentMediaEl.onpause = () => {
       if (roomNonce !== renderNonce) return;
-      if (!currentMediaEl.ended) setAutoAdvanceEnabled(false);
+      if (!currentMediaEl.ended) stopAutoplayChain();
     };
     currentMediaEl.onended = () => {
       if (roomNonce !== renderNonce) return;
@@ -877,7 +893,7 @@ function renderRoom(options = {}) {
       setAutoAdvanceEnabled(false);
     };
 
-    if (autoplayUnlocked) {
+    if (autoplayUnlocked && !visitorStoppedChain) {
       pendingPlayTimer = setTimeout(() => {
         if (roomNonce !== renderNonce || !currentMediaEl) return;
         currentMediaEl.play().catch(() => {
@@ -931,11 +947,11 @@ const shiftBtn = document.getElementById('shift-btn');
 document.getElementById('return-link').addEventListener('click', event => {
   event.preventDefault();
   sanctuaryEl.classList.remove('visible');
-  renderRoom({ source: 'manual' });
+  renderRoom({ source: visitorStoppedChain ? 'return' : 'manual' });
 });
 
 sanctuaryBtn.addEventListener('click', () => {
-  setAutoAdvanceEnabled(false);
+  stopAutoplayChain();
   stopCurrentMedia();
   sanctuaryEl.classList.add('visible');
 });
