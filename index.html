@@ -563,27 +563,58 @@ function sonicSort(zone) {
 }
 
 function subdivide(audioRect, anchor, G) {
-  if (anchor === 'top' || anchor === 'bottom') {
-    const strip = anchor === 'top'
-      ? { x: G, y: audioRect.y + audioRect.h + G, w: 1 - 2*G, h: 1 - (audioRect.y + audioRect.h) - 2*G }
-      : { x: G, y: G, w: 1 - 2*G, h: audioRect.y - 2*G };
-    return splitStrip(strip, 'h');
-  }
-  if (anchor === 'left' || anchor === 'right') {
-    const strip = anchor === 'left'
-      ? { x: audioRect.x + audioRect.w + G, y: G, w: 1 - (audioRect.x + audioRect.w) - 2*G, h: 1 - 2*G }
-      : { x: G, y: G, w: audioRect.x - 2*G, h: 1 - 2*G };
-    return splitStrip(strip, 'v');
-  }
-  // float: carve slabs around audio, take 3 largest
-  const slabs = [
-    { x: G, y: G, w: 1-2*G, h: audioRect.y - G*2 },
-    { x: G, y: audioRect.y + audioRect.h + G, w: 1-2*G, h: 1 - (audioRect.y + audioRect.h) - 2*G },
-    { x: G, y: audioRect.y, w: audioRect.x - G*2, h: audioRect.h },
-    { x: audioRect.x + audioRect.w + G, y: audioRect.y, w: 1 - (audioRect.x + audioRect.w) - 2*G, h: audioRect.h }
-  ].filter(s => s.w > 0.04 && s.h > 0.04);
-  slabs.sort((a, b) => (b.w * b.h) - (a.w * a.h));
-  return slabs.slice(0, 3);
+  const clear = Math.max(G * 2, 0.026);
+  const left = G;
+  const right = 1 - G;
+  const top = G;
+  const bottom = 1 - G;
+  const ax0 = audioRect.x - clear;
+  const ax1 = audioRect.x + audioRect.w + clear;
+  const ay0 = audioRect.y - clear;
+  const ay1 = audioRect.y + audioRect.h + clear;
+  const pockets = [];
+
+  const addPocket = pocket => {
+    if (pocket.w > 0.10 && pocket.h > 0.09) pockets.push(pocket);
+  };
+
+  const addRow = (y, h, side) => {
+    if (h <= 0.09) return;
+    const third = (right - left) / 3;
+    addPocket({ x: left, y, w: third - G, h, side });
+    addPocket({ x: left + third, y, w: third - G, h, side });
+    addPocket({ x: left + third * 2, y, w: third, h, side });
+  };
+
+  const addColumn = (x, w, side) => {
+    if (w <= 0.10) return;
+    const third = (bottom - top) / 3;
+    addPocket({ x, y: top, w, h: third - G, side });
+    addPocket({ x, y: top + third, w, h: third - G, side });
+    addPocket({ x, y: top + third * 2, w, h: third, side });
+  };
+
+  addRow(top, ay0 - top, 'top');
+  addRow(ay1, bottom - ay1, 'bottom');
+  addColumn(left, ax0 - left, 'left');
+  addColumn(ax1, right - ax1, 'right');
+
+  pockets.forEach(pocket => {
+    pocket.score = pocket.w * pocket.h * rand(0.72, 1.28);
+  });
+  pockets.sort((a, b) => b.score - a.score);
+
+  const chosen = [];
+  pockets.forEach(pocket => {
+    if (chosen.length >= 3) return;
+    const sideAlreadyUsed = chosen.some(c => c.side === pocket.side);
+    if (!sideAlreadyUsed || chosen.length > 1 || Math.random() < 0.24) chosen.push(pocket);
+  });
+  pockets.forEach(pocket => {
+    if (chosen.length < 3 && !chosen.includes(pocket)) chosen.push(pocket);
+  });
+
+  return chosen.length ? chosen : splitStrip({ x: G, y: G, w: 1 - 2 * G, h: 1 - 2 * G }, 'h');
 }
 
 function splitStrip(strip, axis) {
@@ -615,9 +646,8 @@ function splitStrip(strip, axis) {
 // ENGINE 4A: TEXT FRAGMENT ACTUATOR — metabolizes the corpus into glyphs
 // ═══════════════════════════════════════════════════════════════════════════
 // the entire corpus is signal — fuel. the actuator slices word-windows
-// freely from it and gives back three short glyphs per room. the gate:
-// each glyph lands between 11 and 33 characters. word-level cuts only,
-// so the slices remain readable as language.
+// freely from it and gives back three glyphs per room. most land between
+// 11 and 33 characters; a small minority are longer and quieter.
 //
 // future hook: when an LLM is wired in, the actuator can rearrange or
 // compose new glyphs in this length band, using the corpus as inspiration
@@ -625,54 +655,56 @@ function splitStrip(strip, axis) {
 
 const GLYPH_MIN = 11;
 const GLYPH_MAX = 33;
+const LONG_GLYPH_MIN = 34;
+const LONG_GLYPH_MAX = 78;
 const recentSlices = [];
 const SLICE_MEMORY = 12;
 
-function sliceGlyph(text) {
+function sliceGlyph(text, minLen = GLYPH_MIN, maxLen = GLYPH_MAX) {
   text = String(text).trim();
-  if (text.length < GLYPH_MIN) return null;
-  if (text.length <= GLYPH_MAX) return text;
+  if (text.length < minLen) return null;
+  if (text.length <= maxLen) return text;
 
-  // longer than 33: pick a random word-window that lands in range
   const words = text.split(/\s+/);
   for (let attempt = 0; attempt < 24; attempt++) {
     const start = Math.floor(Math.random() * words.length);
     let end = start + 1;
     while (end <= words.length) {
       const candidate = words.slice(start, end).join(' ');
-      if (candidate.length > GLYPH_MAX) {
+      if (candidate.length > maxLen) {
         const stepBack = words.slice(start, end - 1).join(' ');
-        if (stepBack.length >= GLYPH_MIN) return stepBack;
+        if (stepBack.length >= minLen) return stepBack;
         break;
       }
       end++;
     }
     const tail = words.slice(start, Math.min(end, words.length)).join(' ');
-    if (tail.length >= GLYPH_MIN && tail.length <= GLYPH_MAX) return tail;
+    if (tail.length >= minLen && tail.length <= maxLen) return tail;
   }
   return null;
 }
 
-function pickGlyph() {
+function pickGlyph(longForm = false) {
+  const minLen = longForm ? LONG_GLYPH_MIN : GLYPH_MIN;
+  const maxLen = longForm ? LONG_GLYPH_MAX : GLYPH_MAX;
   for (let attempts = 0; attempts < 60; attempts++) {
     const source = CORPUS[Math.floor(Math.random() * CORPUS.length)];
-    const glyph = sliceGlyph(source);
+    const glyph = sliceGlyph(source, minLen, maxLen);
     if (!glyph) continue;
     if (recentSlices.includes(glyph)) continue;
     recentSlices.push(glyph);
     if (recentSlices.length > SLICE_MEMORY) recentSlices.shift();
-    return glyph;
+    return { text: glyph, longForm };
   }
-  // fallback: smallest viable slice from a random source
   for (let i = 0; i < 30; i++) {
     const g = sliceGlyph(CORPUS[Math.floor(Math.random() * CORPUS.length)]);
-    if (g) return g;
+    if (g) return { text: g, longForm: false };
   }
-  return 'breath';
+  return { text: 'breath', longForm: false };
 }
 
 function actuateFragments() {
-  return [pickGlyph(), pickGlyph(), pickGlyph()].map(text => ({ text }));
+  return [0, 1, 2].map(() => pickGlyph(Math.random() < 0.18));
 }
 
 
@@ -681,13 +713,12 @@ function actuateFragments() {
 // ═══════════════════════════════════════════════════════════════════════════
 // receives three glyphs (each 11–33 chars) and three cell rectangles.
 //
-// the targeter doesn't try to make the glyphs fit the audio, the zone, or
-// each other. it scatters. its job is to make sure each glyph is present
+// it builds pockets around the song, then lets each glyph choose a fitting
+// presence.
 // and legible in its cell — beyond that, fractal randomness within range.
 //
-// one compositional move only: one of the three glyphs steps back in
-// opacity, so the three don't read at the same volume. that's depth, not
-// arrangement.
+// close glyphs tend smaller and clearer; edge glyphs can carry longer,
+// quieter residue.
 
 const FONTS = [
   "'Georgia', 'Times New Roman', serif",
@@ -698,6 +729,7 @@ const FONTS = [
 const ALIGNS = ['left', 'center', 'right'];
 
 const pickFrom = arr => arr[Math.floor(Math.random() * arr.length)];
+const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
 
 function targetTactile(glyphs, cells, room) {
   const palette = ZONE_PALETTES[room.zone];
@@ -715,12 +747,34 @@ function targetTactile(glyphs, cells, room) {
 
     // ─── size: emerges from filling the cell's actual area ───
     // each char ≈ 0.55em wide × 1.4em tall ≈ 0.77 em²
-    const cellPxArea = (cell.w * W) * (cell.h * H);
-    const targetFill = 0.55 + Math.random() * 0.18;       // 0.55–0.73
-    const charArea = Math.max(glyph.text.length, 1) * 0.77;
-    let fontSize = Math.sqrt((cellPxArea * targetFill) / charArea);
-    const ceiling = Math.min(64, Math.sqrt(cellPxArea) * 0.42);
-    fontSize = Math.max(13, Math.min(ceiling, fontSize));
+    const cellPxW = Math.max(1, cell.w * W);
+    const cellPxH = Math.max(1, cell.h * H);
+    const cellPxArea = cellPxW * cellPxH;
+    const text = glyph.text;
+    const words = text.split(/\s+/).filter(Boolean);
+    const longest = words.reduce((max, word) => Math.max(max, word.length), 1);
+    const audioCenterX = room.audioRect.x + room.audioRect.w / 2;
+    const audioCenterY = room.audioRect.y + room.audioRect.h / 2;
+    const cellCenterX = cell.x + cell.w / 2;
+    const cellCenterY = cell.y + cell.h / 2;
+    const distance = clamp(Math.hypot(cellCenterX - audioCenterX, cellCenterY - audioCenterY) / 0.72, 0, 1);
+    const edgeDepth = clamp(Math.min(cell.x, cell.y, 1 - cell.x - cell.w, 1 - cell.y - cell.h) / 0.18, 0, 1);
+    const nearSong = 1 - distance;
+    const edgeQuiet = 1 - edgeDepth;
+    const lineHeight = 1.14 + Math.random() * 0.22;
+    const letterSpacing = Math.random() * (glyph.longForm ? 0.022 : 0.044);
+    const targetFill = glyph.longForm ? rand(0.12, 0.20) : rand(0.18, 0.30);
+    const areaSize = Math.sqrt((cellPxArea * targetFill) / Math.max(text.length * 0.72, 1));
+    const wordFit = (cellPxW * 0.86) / Math.max(longest * (0.56 + letterSpacing), 1);
+    const heightFit = (cellPxH * 0.78) / (lineHeight * (glyph.longForm ? 2.7 : 1.8));
+    let fontSize = Math.min(areaSize, wordFit, heightFit, glyph.longForm ? 44 : 52);
+    fontSize *= 0.78 + distance * 0.34;
+    fontSize = clamp(fontSize, 14, glyph.longForm ? 42 : 50);
+    const align = cellCenterX < audioCenterX - 0.12 ? 'right'
+      : cellCenterX > audioCenterX + 0.12 ? 'left'
+      : pickFrom(ALIGNS);
+    const opacityAgency = rand(-0.08, 0.08);
+    const opacity = clamp(0.58 + nearSong * 0.22 - edgeQuiet * 0.10 - (glyph.longForm ? 0.09 : 0) + opacityAgency, 0.42, 0.88);
 
     return {
       fragment: glyph,
@@ -729,10 +783,10 @@ function targetTactile(glyphs, cells, room) {
         fontFamily: pickFrom(FONTS),
         fontSize: Math.round(fontSize) + 'px',
         color: pickFrom(palette),
-        opacity: i === deepIdx ? 0.62 : 0.85 + Math.random() * 0.10,
-        textAlign: pickFrom(ALIGNS),
-        letterSpacing: (Math.random() * 0.08 - 0.01).toFixed(3) + 'em',
-        lineHeight: (1.15 + Math.random() * 0.35).toFixed(2),
+        opacity: i === deepIdx ? Math.max(0.42, opacity - 0.10) : opacity,
+        textAlign: align,
+        letterSpacing: letterSpacing.toFixed(3) + 'em',
+        lineHeight: lineHeight.toFixed(2),
         transform: i === rotateIdx ? `rotate(${((Math.random() - 0.5) * 8).toFixed(1)}deg)` : 'none'
       }
     };
@@ -828,6 +882,9 @@ function renderRoom(options = {}) {
   if (source === 'manual') {
     unlockAutoplayChain();
   }
+  if (source === 'init') {
+    allowAutoAdvance = true;
+  }
   stopCurrentMedia();
 
   // clear previous cells (keep bg element)
@@ -866,10 +923,10 @@ function renderRoom(options = {}) {
         <span class="audio-label">transmission</span>
         <span class="audio-title">${sonic.item.title}</span>
       </div>
-      <audio controls preload="metadata" src="${sonic.item.src}"></audio>
+      <audio controls autoplay preload="metadata" src="${sonic.item.src}"></audio>
     </div>`;
   } else {
-    audioCell.innerHTML = `<video src="${sonic.item.src}" controls preload="metadata"></video>`;
+    audioCell.innerHTML = `<video src="${sonic.item.src}" controls autoplay preload="metadata"></video>`;
   }
   roomEl.appendChild(audioCell);
 
@@ -895,7 +952,8 @@ function renderRoom(options = {}) {
       setAutoAdvanceEnabled(false);
     };
 
-    if (autoplayUnlocked && !visitorStoppedChain) {
+    const shouldAttemptPlayback = source === 'init' || (autoplayUnlocked && !visitorStoppedChain);
+    if (shouldAttemptPlayback) {
       pendingPlayTimer = setTimeout(() => {
         if (roomNonce !== renderNonce || !currentMediaEl) return;
         currentMediaEl.play().catch(() => {
@@ -923,7 +981,7 @@ function renderRoom(options = {}) {
       top: pct(rect.y),
       width: pct(rect.w),
       height: pct(rect.h),
-      padding: rect.w < 0.16 ? '8% 10%' : '6%',
+      padding: rect.w < 0.16 ? 'clamp(14px, 2vmin, 30px)' : 'clamp(14px, 2.2vmin, 34px)',
       justifyContent: style.textAlign === 'right' ? 'flex-end' : style.textAlign === 'center' ? 'center' : 'flex-start',
       ...style,
       transitionDelay: `${120 + i * 110}ms`
