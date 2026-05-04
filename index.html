@@ -47,13 +47,17 @@
   .cell-audio {
     z-index: 2;
     opacity: 0.78;
-    transition: opacity 300ms;
+    transition: opacity 300ms, transform 700ms cubic-bezier(.22,1,.36,1);
+    backdrop-filter: blur(10px);
+    background: linear-gradient(180deg, rgba(8,8,10,0.82), rgba(18,18,24,0.56));
+    border: 1px solid rgba(120,120,140,0.12);
   }
   .cell-audio:hover {
     opacity: 0.95;
   }
   .cell-audio iframe,
-  .cell-audio video {
+  .cell-audio video,
+  .cell-audio audio {
     width: 100%;
     height: 100%;
     border: 0;
@@ -61,6 +65,43 @@
     display: block;
   }
   .cell-audio video { object-fit: contain; }
+  .cell-audio.audio-shell {
+    align-items: stretch;
+    justify-content: stretch;
+    padding: 18px;
+  }
+  .audio-card {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 14px;
+  }
+  .audio-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    color: rgba(216,216,219,0.84);
+  }
+  .audio-label {
+    font-size: 10px;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    color: rgba(216,216,219,0.44);
+  }
+  .audio-title {
+    font-size: 14px;
+    line-height: 1.35;
+    letter-spacing: 0.08em;
+  }
+  .cell-audio audio {
+    background: transparent;
+    min-height: 54px;
+  }
+  .cell-audio audio::-webkit-media-controls-panel {
+    background: rgba(12,12,16,0.82);
+  }
 
   /* ── text cells ── */
   .cell-text {
@@ -153,6 +194,8 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
+    overflow: hidden;
+    padding: 112px 24px 40px;
     opacity: 0;
     pointer-events: none;
     transition: opacity 800ms cubic-bezier(.4,.1,.2,1);
@@ -161,63 +204,94 @@
     opacity: 1;
     pointer-events: auto;
   }
+  #sanctuary .sanctuary-top {
+    position: absolute;
+    top: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+  }
+  #sanctuary .sanctuary-return {
+    display: inline-block;
+    border: 1px solid rgba(172, 109, 255, 0.72);
+    color: #b274ff;
+    background: rgba(74, 36, 120, 0.14);
+    font-size: 12px;
+    letter-spacing: 0.22em;
+    padding: 10px 18px;
+    text-decoration: none;
+    text-transform: uppercase;
+    transition: color 300ms, border-color 300ms, background 300ms;
+  }
+  #sanctuary .sanctuary-return:hover {
+    color: #d8b8ff;
+    border-color: rgba(216, 184, 255, 0.92);
+    background: rgba(96, 54, 148, 0.22);
+  }
+  #sanctuary .sanctuary-kicker {
+    color: #c9a7f2;
+    font-size: 11px;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+  }
   #sanctuary .mantra {
     max-width: 440px;
     text-align: center;
-    color: #6a6a72;
-    font-size: 14px;
-    line-height: 1.85;
-    margin-top: -3vh;
+    color: #e6e1eb;
+    font-size: clamp(11px, 1.62vh, 14px);
+    line-height: 1.58;
+    margin-top: 3vh;
     letter-spacing: 0.5px;
-  }
-  #sanctuary .mantra .title {
-    font-size: 11px;
-    letter-spacing: 3px;
-    text-transform: uppercase;
-    color: #4a4a52;
-    margin-bottom: 32px;
-    display: block;
-  }
-  #sanctuary .mantra .name {
-    font-size: 20px;
-    color: #d8d8db;
-    letter-spacing: 4px;
-    margin-bottom: 40px;
-    display: block;
-    cursor: pointer;
-    transition: color 400ms, letter-spacing 400ms;
-  }
-  #sanctuary .mantra .name:hover {
-    color: #a8a8ad;
-    letter-spacing: 6px;
   }
   #sanctuary .mantra em {
     font-style: normal;
-    color: #a8a8ad;
+    color: #ffffff;
   }
-  #sanctuary .enter-btn {
-    margin-top: 48px;
-    background: transparent;
-    border: 1px solid #1d1d22;
-    color: #4a4a52;
-    font-family: inherit;
-    font-size: 11px;
-    letter-spacing: 2px;
-    padding: 10px 20px;
-    cursor: pointer;
-    transition: color 400ms, border-color 400ms;
-    text-transform: lowercase;
+
+  #glitch-veil {
+    position: fixed;
+    inset: 0;
+    z-index: 160;
+    pointer-events: none;
+    opacity: 0;
+    background:
+      repeating-linear-gradient(
+        180deg,
+        rgba(255,255,255,0.00) 0,
+        rgba(255,255,255,0.00) 2px,
+        rgba(255,255,255,0.03) 3px,
+        rgba(255,255,255,0.00) 5px
+      ),
+      linear-gradient(90deg, rgba(88,170,255,0.08), rgba(255,96,96,0.06), rgba(235,235,255,0.03)),
+      radial-gradient(circle at 50% 50%, rgba(255,255,255,0.08), rgba(255,255,255,0) 58%);
+    mix-blend-mode: screen;
   }
-  #sanctuary .enter-btn:hover { color: #a8a8ad; border-color: #3a3a42; }
+  #glitch-veil.active {
+    animation: glitch-flare 540ms steps(7, end) forwards;
+  }
+
+  @keyframes glitch-flare {
+    0%   { opacity: 0; transform: translate3d(0,0,0) scale(1); filter: hue-rotate(0deg); }
+    12%  { opacity: 0.55; transform: translate3d(-1.2%,0.4%,0); filter: hue-rotate(18deg); }
+    28%  { opacity: 0.16; transform: translate3d(1.1%,-0.8%,0); }
+    46%  { opacity: 0.64; transform: translate3d(-0.6%,0.3%,0) scale(1.01); filter: hue-rotate(-12deg); }
+    70%  { opacity: 0.22; transform: translate3d(0.5%,0,0); }
+    100% { opacity: 0; transform: translate3d(0,0,0) scale(1); filter: hue-rotate(0deg); }
+  }
 </style>
 </head>
 <body>
 
 <!-- ── sanctuary: the one static page ── -->
 <div id="sanctuary">
+  <div class="sanctuary-top">
+    <a class="sanctuary-return" id="return-link" href="/">Return</a>
+    <span class="sanctuary-kicker">Grounding Mantra</span>
+  </div>
   <div class="mantra">
-    <span class="title">grounding mantra</span>
-    <span class="name" id="return-link">"Return"</span>
     <em>Breathe in.</em><br>
     Let it rise.<br>
     The hum is not noise—<br>
@@ -243,13 +317,13 @@
     Each breath is a signal:<br>
     You're allowed to heal.
   </div>
-  <button class="enter-btn" id="enter-room">enter the room</button>
 </div>
 
 <!-- ── the room ── -->
 <div id="room">
   <div class="bg" id="bg"></div>
 </div>
+<div id="glitch-veil"></div>
 <div id="zone-indicator"></div>
 <button id="sanctuary-btn">sanctuary</button>
 <button id="shift-btn">shifting sequence</button>
@@ -277,35 +351,83 @@ const ZONE_PALETTES = {
 };
 
 // ── media corpus ───────────────────────────────────────────────────────────
-const SUNO_EMBED = 'https://suno.com/embed/';
 const CDN = 'https://cryptic-syndicate.com/wp-content/uploads/2026/04/';
-
-const audioIds = [
-  '71977aba-d79b-4178-95b9-8a238d2f1180','3802c87a-fd70-42e0-adda-fea259575485',
-  'bd355dba-7754-4fa0-b717-d5b00aafc182','e83a28fa-3eb2-4405-a877-0aac2cdcf470',
-  '7c0e37d4-df16-4c65-8a4b-55938877c280','7c6d24aa-e36a-49e2-a5fe-e4440e791fb2',
-  '536f5162-8a06-43a6-a1db-67c2b6eebe83','4147d940-9be9-4b3b-a9f6-6c2c9d1fed76',
-  '640650d6-5b31-42fa-bc95-e381b0bc9a5c','213556e5-c413-43fc-937f-821d260c9271',
-  '307380a4-34c9-4593-bb07-7f6af5493f66','63886711-d631-47db-ad69-c333122d2fef',
-  'b33f4f72-da77-450b-9aab-3fc8cf0e9768','66a36451-0e8a-4bc5-b10d-e1712ad509cd',
-  'ee668425-2745-41d7-9db4-aaa57ae37853','da542666-fbb0-4428-a316-8f2f07aeb99a',
-  '8a9c17d4-055e-46ee-9fb6-46d68379c687','b48af77c-7a5d-4c3a-8896-349415a18cbb',
-  '20396ca9-818c-4ccf-bf14-d7846a8aee11','27c97f41-7204-45f8-9466-c1d5209a38e6',
-  '634a3945-d5fe-4671-95ec-26ed1bd85830','7cd0001c-13b9-4ab5-b93b-73c62d327c2f',
-  '97467829-e201-4588-8db6-cb1544efea3b','1b999d6e-ae9c-424d-813f-1c0db02483d4',
-  '0cf7a462-0a43-48cb-b956-2ab1616bb78d','47be2129-fafa-4f2d-857b-23399e66aca7',
-  '7a9a2fbf-cc93-45ad-9fd5-232ef323e980','d9507113-e293-4649-b2ba-b89e8a84217b',
-  'cdbc9de2-cc61-4b86-a1a7-240cffaf3e4b','fb026def-e30e-437b-ab1f-76e2946d98d4',
-  'c6edd450-52d2-45c8-b1b1-d75c158423df','03bc9d13-cdf9-4a4b-a936-d598c3b22921',
-  '337368dc-366a-472d-a8a2-11f55319b928','ae0644ce-e003-4e56-9ac4-adc6dbc4c9c6',
-  '7fb93e18-883d-426e-9049-227ec1d268ca','44b1fbf8-c498-4509-a494-d8f483201720',
-  '66bf4e41-b7f3-44a2-bb8f-a189e8a25803','92ddc110-575f-4077-a4a7-109d58d3d0d2',
-  'da6d6dd0-9dd9-4066-ba57-40d1b4214605','b6fe928a-de7b-4dc7-b840-824a89a5d2c7',
-  '250fcace-d5c9-452b-ba30-470a50dbeaed','96a67405-ce92-42d1-bba9-1fcff91e9266',
-  '9c9ca07a-60ff-4ac2-8085-504c5f7226e4','0754d6aa-0039-4e4a-b45f-09af83efd08e',
-  '1d91824b-c7d5-4a6b-a298-aa3228d4abcc','c2744e5f-d051-4d23-9f70-e2b90dc26d58',
-  '4af36f5e-2116-43de-9004-9a3cd52ec459'
+const audioTracks = [
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/04/Breaking-Through-The-Static.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/04/Circuit-Overload.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/04/Click-Clack-Oracle.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/04/Cold-Contender-Code-Collector.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/04/Cryosphere-Address.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/04/Crystal-Missle.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/04/Decent-Niceness.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/04/Digital-Delusion.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/04/Fascinating-Growth.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/04/Faster-Slow-Keepsake.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/04/Field-Phade.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/04/Fractal-Mind-Melt.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/04/Fractalzy.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/04/Glitched-Simulation.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/04/HINGE_FILTER_HANDRAIL.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/04/Ice-core-Ideology.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/04/Inner-Under.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/04/Messy-Message.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/04/Metatronic-Overload.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/04/Quantum-Sonic-Stream.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/04/Sacred-Wild-Descent.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/04/Solve-__-Coagula.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/04/Starts-To-Lift.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/04/Static-Matic.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/04/Sum-Snax.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/04/There-Somewhere.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/04/Three-Plates.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/04/Tripped-Over.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/04/Truth-Collapse-See-Coldly-Quietly.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/04/Uncovered-Sovereignty.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/04/Void-Gazing.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/04/Whenever-Leaning.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/04/Whos-Print.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/04/Woofied.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/04/Zleeping-Zlalienz.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/04/Mist-And-Trust.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/04/More-Less-Yes.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/04/rebmuN.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/04/Loose-Width.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/04/Liminal-Paradox.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/04/Juxtaposition-Mathematician.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/04/Irreducible-Core.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/05/Alchemy-From-Me-to-Me-1.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/05/Alcky-1.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/05/Bummer-Hummer-1.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/05/Deliberate-Misuse-of-Tissues-1.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/05/Ephemeral-Echoes-1.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/05/Functionally-Factual-Fully-Forgetting-1.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/05/Gluefully-1.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/05/Glueless-1.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/05/God-Dog-1.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/05/Jogging-for-Gniggoj-Sake-1.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/05/Living-While-Trying-Dying-Gracefully-1.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/05/Managed-to-Check-Why-We-Quantify-1.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/05/Murm-Full-Worm-Hole-1.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/05/Name-Went-Private-Plane-Jet-1.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/05/Normal-Sentence-Placement-for-Disorientation-2.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/05/Psychic-Slip-Stream-1.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/05/Shimmering-Shifting-Substrate-Sunshine.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/05/Sippin-Solace-Sizzurp.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/05/Solace-Slowly-Smiles.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/05/Soul-Sculpted-Stuffs.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/05/Starting-to-Hum.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/05/Stressin-Lesson-Direction.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/05/Symametrical.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/05/The-Conundrum-of-Clarity.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/05/Timeless-Terrain.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/05/Unker-Preshure.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/05/Yelling-Back.mp3'
 ];
+
+function titleFromAudioUrl(src) {
+  const file = decodeURIComponent(src.split('/').pop() || src);
+  return file.replace(/\.mp3$/i, '');
+}
 
 const videoNames = [
   'AmazingBlazingMusing','AmusingMaze','AteSnax','CheckaDough','GanGain',
@@ -325,10 +447,10 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const rand = (lo, hi) => lo + Math.random() * (hi - lo);
 
 const media = {
-  audio: audioIds.map(id => ({
-    kind: 'audio', id, zone: roll(),
-    embed: SUNO_EMBED + id
-  })),
+  audio: audioTracks.map(src => {
+    const title = titleFromAudioUrl(src);
+    return { kind: 'audio', id: title, zone: roll(), title, src };
+  }),
   video: videoNames.map(n => ({
     kind: 'video', id: n, zone: roll(),
     src: CDN + n + '.mp4'
@@ -485,81 +607,82 @@ function splitStrip(strip, axis) {
 
 
 // ═══════════════════════════════════════════════════════════════════════════
-// ENGINE 4A: TEXT FRAGMENT ACTUATOR — finds three fragments per room
+// ENGINE 4A: TEXT FRAGMENT ACTUATOR — metabolizes the corpus into glyphs
 // ═══════════════════════════════════════════════════════════════════════════
-// The corpus is one body. Zone doesn't gate — it softly biases.
-// Modes: select (use as-is), recombine (juxtapose two), mutate (alter one).
-// Weighted toward select and recombine. The corpus speaks for itself.
+// the entire corpus is signal — fuel. the actuator slices word-windows
+// freely from it and gives back three short glyphs per room. the gate:
+// each glyph lands between 11 and 33 characters. word-level cuts only,
+// so the slices remain readable as language.
+//
+// future hook: when an LLM is wired in, the actuator can rearrange or
+// compose new glyphs in this length band, using the corpus as inspiration
+// rather than only as source. same metabolic shape; richer digestion.
 
-const recentFragments = [];
-const FRAGMENT_MEMORY = 9; // don't repeat within last 9 fragments shown
+const GLYPH_MIN = 11;
+const GLYPH_MAX = 33;
+const recentSlices = [];
+const SLICE_MEMORY = 12;
 
-const MODE_WEIGHTS = { select: 0.50, recombine: 0.30, mutate: 0.20 };
+function sliceGlyph(text) {
+  text = String(text).trim();
+  if (text.length < GLYPH_MIN) return null;
+  if (text.length <= GLYPH_MAX) return text;
 
-function pickMode() {
-  const r = Math.random();
-  if (r < MODE_WEIGHTS.select) return 'select';
-  if (r < MODE_WEIGHTS.select + MODE_WEIGHTS.recombine) return 'recombine';
-  return 'mutate';
+  // longer than 33: pick a random word-window that lands in range
+  const words = text.split(/\s+/);
+  for (let attempt = 0; attempt < 24; attempt++) {
+    const start = Math.floor(Math.random() * words.length);
+    let end = start + 1;
+    while (end <= words.length) {
+      const candidate = words.slice(start, end).join(' ');
+      if (candidate.length > GLYPH_MAX) {
+        const stepBack = words.slice(start, end - 1).join(' ');
+        if (stepBack.length >= GLYPH_MIN) return stepBack;
+        break;
+      }
+      end++;
+    }
+    const tail = words.slice(start, Math.min(end, words.length)).join(' ');
+    if (tail.length >= GLYPH_MIN && tail.length <= GLYPH_MAX) return tail;
+  }
+  return null;
 }
 
-function pickFragment() {
-  // Pick a fragment not in recent memory, biased toward shorter ones
-  // Text should whisper — favor fragments under 200 chars
-  let attempts = 0;
-  while (attempts < 30) {
-    const idx = Math.floor(Math.random() * CORPUS.length);
-    if (recentFragments.includes(idx)) { attempts++; continue; }
-    // bias: 70% chance to skip fragments over 250 chars
-    if (CORPUS[idx].length > 250 && Math.random() < 0.7) { attempts++; continue; }
-    recentFragments.push(idx);
-    if (recentFragments.length > FRAGMENT_MEMORY) recentFragments.shift();
-    return CORPUS[idx];
+function pickGlyph() {
+  for (let attempts = 0; attempts < 60; attempts++) {
+    const source = CORPUS[Math.floor(Math.random() * CORPUS.length)];
+    const glyph = sliceGlyph(source);
+    if (!glyph) continue;
+    if (recentSlices.includes(glyph)) continue;
+    recentSlices.push(glyph);
+    if (recentSlices.length > SLICE_MEMORY) recentSlices.shift();
+    return glyph;
   }
-  // fallback
-  return CORPUS[Math.floor(Math.random() * CORPUS.length)];
-}
-
-function mutateFragment(text) {
-  const words = text.split(' ');
-  if (words.length < 4) return text;
-  // one mutation: drop a clause at a comma or conjunction
-  const commaIdx = text.indexOf(',');
-  if (commaIdx > 15 && commaIdx < text.length - 15) {
-    // keep one side, chosen randomly
-    return Math.random() > 0.5
-      ? text.slice(0, commaIdx).trim()
-      : text.slice(commaIdx + 1).trim();
+  // fallback: smallest viable slice from a random source
+  for (let i = 0; i < 30; i++) {
+    const g = sliceGlyph(CORPUS[Math.floor(Math.random() * CORPUS.length)]);
+    if (g) return g;
   }
-  // fallback: invert first and second half
-  const mid = Math.floor(words.length / 2);
-  return [...words.slice(mid), ...words.slice(0, mid)].join(' ');
+  return 'breath';
 }
 
 function actuateFragments() {
-  const fragments = [];
-  for (let i = 0; i < 3; i++) {
-    const mode = pickMode();
-    let text;
-    if (mode === 'select') {
-      text = pickFragment();
-    } else if (mode === 'recombine') {
-      text = pickFragment() + '\n' + pickFragment();
-    } else {
-      text = mutateFragment(pickFragment());
-    }
-    fragments.push({ text, mode });
-  }
-  return fragments;
+  return [pickGlyph(), pickGlyph(), pickGlyph()].map(text => ({ text }));
 }
 
 
 // ═══════════════════════════════════════════════════════════════════════════
-// ENGINE 4B: MORPHOLOGICAL ARTIFACT ASSIGNER — reads the room, places text
+// ENGINE 4B: TACTILE TEXT TARGETER — metabolizes glyphs + cells into presence
 // ═══════════════════════════════════════════════════════════════════════════
-// Receives: 3 fragments, 3 cell rects, full room state.
-// Responds to: cell shape, audio anchor, background opacity, zone.
-// No fixed vocabulary of responses — it feels its way through.
+// receives three glyphs (each 11–33 chars) and three cell rectangles.
+//
+// the targeter doesn't try to make the glyphs fit the audio, the zone, or
+// each other. it scatters. its job is to make sure each glyph is present
+// and legible in its cell — beyond that, fractal randomness within range.
+//
+// one compositional move only: one of the three glyphs steps back in
+// opacity, so the three don't read at the same volume. that's depth, not
+// arrangement.
 
 const FONTS = [
   "'Georgia', 'Times New Roman', serif",
@@ -567,109 +690,48 @@ const FONTS = [
   "'Helvetica Neue', 'Arial', sans-serif"
 ];
 
-const recentFonts = [];
-const recentAligns = [];
+const ALIGNS = ['left', 'center', 'right'];
 
-function assignMorphology(fragments, cells, roomState) {
-  const { zone, anchor, bgOpacity } = roomState;
-  const palette = ZONE_PALETTES[zone];
-  const assignments = [];
+const pickFrom = arr => arr[Math.floor(Math.random() * arr.length)];
 
-  // sort fragments by text length, cells by area — long text gets more space
-  const indexed = fragments.map((f, i) => ({ f, i, len: f.text.length }));
-  const cellsSorted = cells.map((c, i) => ({ c, i, area: c.w * c.h }));
-  indexed.sort((a, b) => b.len - a.len);
-  cellsSorted.sort((a, b) => b.area - a.area);
+function targetTactile(glyphs, cells, room) {
+  const palette = ZONE_PALETTES[room.zone];
 
-  // pair: longest fragment → largest cell
-  const pairs = indexed.map((frag, j) => ({
-    fragment: frag.f,
-    cell: cellsSorted[j] ? cellsSorted[j].c : cells[j],
-    origIndex: frag.i
-  }));
+  // canvas in pixels — sizing needs real dimensions
+  const W = window.innerWidth;
+  const H = window.innerHeight;
 
-  pairs.forEach((pair, i) => {
-    const { fragment, cell } = pair;
-    const cellRatio = cell.w / cell.h;
-    const cellArea = cell.w * cell.h;
+  // composition rolls — once per room
+  const deepIdx = Math.floor(Math.random() * 3);
+  const rotateIdx = Math.random() < 0.22 ? Math.floor(Math.random() * 3) : -1;
 
-    // distance from audio center — affects boldness
-    const audioCenterX = roomState.audioRect.x + roomState.audioRect.w / 2;
-    const audioCenterY = roomState.audioRect.y + roomState.audioRect.h / 2;
-    const cellCenterX = cell.x + cell.w / 2;
-    const cellCenterY = cell.y + cell.h / 2;
-    const dist = Math.hypot(cellCenterX - audioCenterX, cellCenterY - audioCenterY);
-    const boldness = Math.min(1, dist * 1.4);
+  return glyphs.map((glyph, i) => {
+    const cell = cells[i] || cells[0];
 
-    // font: influenced by mode and position in sequence
-    // select → serif (honoring the source), mutate → mono (transmission feel)
-    let fontIdx;
-    if (fragment.mode === 'select') fontIdx = 0;
-    else if (fragment.mode === 'mutate') fontIdx = 1;
-    else fontIdx = 2;
-    // drift: avoid repeating the same font consecutively
-    if (recentFonts.length && recentFonts[recentFonts.length - 1] === fontIdx) {
-      fontIdx = (fontIdx + 1) % FONTS.length;
-    }
-    recentFonts.push(fontIdx);
-    if (recentFonts.length > 6) recentFonts.shift();
+    // ─── size: emerges from filling the cell's actual area ───
+    // each char ≈ 0.55em wide × 1.4em tall ≈ 0.77 em²
+    const cellPxArea = (cell.w * W) * (cell.h * H);
+    const targetFill = 0.55 + Math.random() * 0.18;       // 0.55–0.73
+    const charArea = Math.max(glyph.text.length, 1) * 0.77;
+    let fontSize = Math.sqrt((cellPxArea * targetFill) / charArea);
+    const ceiling = Math.min(64, Math.sqrt(cellPxArea) * 0.42);
+    fontSize = Math.max(13, Math.min(ceiling, fontSize));
 
-    // font size: deliberately small — text hides around the music, doesn't compete
-    // the music is the gravity; text orbits it quietly
-    const areaFactor = Math.max(10, Math.min(16, cellArea * 120));
-    // longer text gets even smaller
-    const lengthPenalty = fragment.text.length > 200 ? 0.75 : fragment.text.length > 100 ? 0.85 : 1;
-    const fontSize = Math.round(areaFactor * lengthPenalty);
-
-    // color: from zone palette, shifted by cell position
-    const colorIdx = (i + zoneHistory.length) % palette.length;
-    const textColor = palette[colorIdx];
-
-    // opacity: text stays quiet — closer to audio even more so
-    const opacity = 0.20 + boldness * 0.25;
-
-    // alignment: responds to cell shape
-    let align;
-    if (cellRatio < 0.6) align = 'center';         // tall narrow
-    else if (cellRatio > 2.5) align = 'center';     // very wide
-    else if (cellRatio > 1.5) align = 'left';       // wide-ish
-    else align = Math.random() > 0.7 ? 'right' : 'left';  // moderate
-    // avoid repeating alignment
-    if (recentAligns.length > 1 && recentAligns.slice(-2).every(a => a === align)) {
-      align = align === 'left' ? 'center' : 'left';
-    }
-    recentAligns.push(align);
-    if (recentAligns.length > 6) recentAligns.shift();
-
-    // letter-spacing: bolder cells get more air
-    const letterSpacing = boldness > 0.7 ? '0.04em' : boldness > 0.4 ? '0.01em' : '-0.01em';
-
-    // line-height: tighter for large text, looser for small
-    const lineHeight = fontSize > 28 ? 1.25 : fontSize > 18 ? 1.4 : 1.55;
-
-    // occasional subtle rotation — max one per room, rare
-    let rotation = 0;
-    if (i === 1 && Math.random() > 0.8) {
-      rotation = (Math.random() - 0.5) * 8; // -4 to +4 degrees
-    }
-
-    assignments.push({
-      fragment,
+    return {
+      fragment: glyph,
       cell,
       style: {
-        fontFamily: FONTS[fontIdx],
-        fontSize: fontSize + 'px',
-        color: textColor,
-        opacity,
-        textAlign: align,
-        letterSpacing,
-        lineHeight: lineHeight.toString(),
-        transform: rotation ? `rotate(${rotation.toFixed(1)}deg)` : 'none'
+        fontFamily: pickFrom(FONTS),
+        fontSize: Math.round(fontSize) + 'px',
+        color: pickFrom(palette),
+        opacity: i === deepIdx ? 0.62 : 0.85 + Math.random() * 0.10,
+        textAlign: pickFrom(ALIGNS),
+        letterSpacing: (Math.random() * 0.08 - 0.01).toFixed(3) + 'em',
+        lineHeight: (1.15 + Math.random() * 0.35).toFixed(2),
+        transform: i === rotateIdx ? `rotate(${((Math.random() - 0.5) * 8).toFixed(1)}deg)` : 'none'
       }
-    });
+    };
   });
-
-  return assignments;
 }
 
 
@@ -678,12 +740,78 @@ function assignMorphology(fragments, cells, roomState) {
 // ═══════════════════════════════════════════════════════════════════════════
 const roomEl = document.getElementById('room');
 const bgEl = document.getElementById('bg');
+const glitchEl = document.getElementById('glitch-veil');
 const zoneEl = document.getElementById('zone-indicator');
 let bgTimer = null;
+let currentMediaEl = null;
+let renderNonce = 0;
+let autoplayUnlocked = false;
+let allowAutoAdvance = false;
+let autoAdvanceTimer = null;
+let pendingPlayTimer = null;
 
 function pct(n) { return (n * 100).toFixed(2) + '%'; }
 
-function renderRoom() {
+function clearPlaybackTimers() {
+  if (autoAdvanceTimer) {
+    clearTimeout(autoAdvanceTimer);
+    autoAdvanceTimer = null;
+  }
+  if (pendingPlayTimer) {
+    clearTimeout(pendingPlayTimer);
+    pendingPlayTimer = null;
+  }
+}
+
+function setAutoAdvanceEnabled(enabled) {
+  allowAutoAdvance = enabled;
+}
+
+function unlockAutoplayChain() {
+  autoplayUnlocked = true;
+  allowAutoAdvance = true;
+}
+
+function stopCurrentMedia() {
+  clearPlaybackTimers();
+  if (!currentMediaEl) return;
+  currentMediaEl.onended = null;
+  currentMediaEl.onpause = null;
+  currentMediaEl.onplay = null;
+  currentMediaEl.onloadedmetadata = null;
+  currentMediaEl.onerror = null;
+  if (typeof currentMediaEl.pause === 'function') currentMediaEl.pause();
+  currentMediaEl = null;
+}
+
+function flashGlitch() {
+  glitchEl.classList.remove('active');
+  void glitchEl.offsetWidth;
+  glitchEl.classList.add('active');
+}
+
+function scheduleAutoShift(sourceNonce) {
+  clearPlaybackTimers();
+  if (!allowAutoAdvance || sourceNonce !== renderNonce) return;
+  autoAdvanceTimer = setTimeout(() => {
+    if (!allowAutoAdvance || sourceNonce !== renderNonce) return;
+    flashGlitch();
+    setTimeout(() => {
+      if (!allowAutoAdvance || sourceNonce !== renderNonce) return;
+      renderRoom({ source: 'auto' });
+    }, 220);
+  }, 140);
+}
+
+function renderRoom(options = {}) {
+  const { source = 'manual' } = options;
+  renderNonce += 1;
+  const roomNonce = renderNonce;
+  if (source === 'manual') {
+    unlockAutoplayChain();
+  }
+  stopCurrentMedia();
+
   // clear previous cells (keep bg element)
   [...roomEl.querySelectorAll('.cell')].forEach(el => el.remove());
 
@@ -714,22 +842,57 @@ function renderRoom() {
   });
 
   if (sonic.item.kind === 'audio') {
-    audioCell.innerHTML = `<iframe
-      src="${sonic.item.embed}"
-      allow="autoplay; encrypted-media; fullscreen"
-      allowfullscreen loading="lazy"
-      referrerpolicy="no-referrer-when-downgrade"></iframe>`;
+    audioCell.classList.add('audio-shell');
+    audioCell.innerHTML = `<div class="audio-card">
+      <div class="audio-meta">
+        <span class="audio-label">transmission</span>
+        <span class="audio-title">${sonic.item.title}</span>
+      </div>
+      <audio controls preload="metadata" src="${sonic.item.src}"></audio>
+    </div>`;
   } else {
     audioCell.innerHTML = `<video src="${sonic.item.src}" controls preload="metadata"></video>`;
   }
   roomEl.appendChild(audioCell);
 
+  currentMediaEl = sonic.item.kind === 'audio'
+    ? audioCell.querySelector('audio')
+    : audioCell.querySelector('video');
+
+  if (currentMediaEl) {
+    currentMediaEl.onplay = () => {
+      if (roomNonce !== renderNonce) return;
+      allowAutoAdvance = true;
+    };
+    currentMediaEl.onpause = () => {
+      if (roomNonce !== renderNonce) return;
+      if (!currentMediaEl.ended) setAutoAdvanceEnabled(false);
+    };
+    currentMediaEl.onended = () => {
+      if (roomNonce !== renderNonce) return;
+      scheduleAutoShift(roomNonce);
+    };
+    currentMediaEl.onerror = () => {
+      if (roomNonce !== renderNonce) return;
+      setAutoAdvanceEnabled(false);
+    };
+
+    if (autoplayUnlocked) {
+      pendingPlayTimer = setTimeout(() => {
+        if (roomNonce !== renderNonce || !currentMediaEl) return;
+        currentMediaEl.play().catch(() => {
+          if (roomNonce !== renderNonce) return;
+          setAutoAdvanceEnabled(false);
+        });
+      }, sonic.item.kind === 'audio' ? 900 : 650);
+    }
+  }
+
   // 4. text — three fragments placed in the open space around the audio
   const fragments = actuateFragments();
-  const assignments = assignMorphology(fragments, sonic.others, {
+  const assignments = targetTactile(fragments, sonic.others, {
     zone,
     anchor: sonic.anchor,
-    bgOpacity: bg.opacity,
     audioRect: sonic.rect
   });
 
@@ -764,25 +927,27 @@ function renderRoom() {
 const sanctuaryEl = document.getElementById('sanctuary');
 const sanctuaryBtn = document.getElementById('sanctuary-btn');
 const shiftBtn = document.getElementById('shift-btn');
-const enterBtn = document.getElementById('enter-room');
 
-enterBtn.addEventListener('click', () => {
+document.getElementById('return-link').addEventListener('click', event => {
+  event.preventDefault();
   sanctuaryEl.classList.remove('visible');
-});
-
-document.getElementById('return-link').addEventListener('click', () => {
-  sanctuaryEl.classList.remove('visible');
+  renderRoom({ source: 'manual' });
 });
 
 sanctuaryBtn.addEventListener('click', () => {
+  setAutoAdvanceEnabled(false);
+  stopCurrentMedia();
   sanctuaryEl.classList.add('visible');
 });
 
-shiftBtn.addEventListener('click', renderRoom);
-window.addEventListener('resize', renderRoom);
+shiftBtn.addEventListener('click', () => {
+  flashGlitch();
+  renderRoom({ source: 'manual' });
+});
+window.addEventListener('resize', () => renderRoom({ source: autoplayUnlocked ? 'auto' : 'resize' }));
 
 // room is the landing — first room renders immediately
-renderRoom();
+renderRoom({ source: 'init' });
 </script>
 </body>
 </html>
