@@ -443,8 +443,20 @@ const bgFiles = [
   'Mis1.jpg','Mis3-scaled.jpg','Mus2.jpeg','Mus4-scaled.png','Mus5.png',
   'Mus6-scaled.png','Mus7-scaled.png','Mus8.png','Mus9-scaled.png','Mus10-scaled.png',
   'Mus11-scaled.png','Mus12-scaled.png','Mus13-scaled.jpg','Mus14.jpg','Mus15.jpg',
-  'Mus16.jpg','Mus18.jpg','Mus19.jpg','Mus20.jpg','ThinkOfNothing.jpg'
+  'Mus16.jpg','Mus18.jpg','Mus19.jpg','Mus20.jpg','ThinkOfNothing.jpg',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/05/1.jpg',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/05/2.jpg',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/05/3.jpg',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/05/4.jpg'
 ];
+
+function sourceFromCdnOrUrl(src) {
+  return /^https?:\/\//.test(src) ? src : CDN + src;
+}
+
+function idFromSource(src) {
+  return (src.split('/').pop() || src);
+}
 
 // ── roll zone tags at init (one source of truth) ──────────────────────────
 const roll = () => ZONES[Math.floor(Math.random() * ZONES.length)];
@@ -461,8 +473,8 @@ const media = {
     src: CDN + n + '.mp4'
   })),
   bg: bgFiles.map(f => ({
-    id: f, zone: roll(),
-    src: CDN + f
+    id: idFromSource(f), zone: roll(),
+    src: sourceFromCdnOrUrl(f)
   }))
 };
 
