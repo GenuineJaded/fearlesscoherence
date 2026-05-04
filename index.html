@@ -774,6 +774,10 @@ function setAutoAdvanceEnabled(enabled) {
 }
 
 function unlockAutoplayChain() {
+  resumeAutoplayChain();
+}
+
+function resumeAutoplayChain() {
   visitorStoppedChain = false;
   autoplayUnlocked = true;
   allowAutoAdvance = true;
@@ -876,9 +880,7 @@ function renderRoom(options = {}) {
   if (currentMediaEl) {
     currentMediaEl.onplay = () => {
       if (roomNonce !== renderNonce) return;
-      visitorStoppedChain = false;
-      autoplayUnlocked = true;
-      allowAutoAdvance = true;
+      resumeAutoplayChain();
     };
     currentMediaEl.onpause = () => {
       if (roomNonce !== renderNonce) return;
