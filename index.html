@@ -957,6 +957,7 @@ let currentMediaEl = null;
 let renderNonce = 0;
 let autoplayUnlocked = false;
 let allowAutoAdvance = false;
+let visitorStoppedChain = false;
 let autoAdvanceTimer = null;
 let pendingPlayTimer = null;
 
@@ -982,8 +983,16 @@ function unlockAutoplayChain() {
 }
 
 function resumeAutoplayChain() {
+  visitorStoppedChain = false;
   autoplayUnlocked = true;
   allowAutoAdvance = true;
+}
+
+function stopAutoplayChain() {
+  visitorStoppedChain = true;
+  autoplayUnlocked = false;
+  allowAutoAdvance = false;
+  clearPlaybackTimers();
 }
 
 function stopCurrentMedia() {
@@ -1021,7 +1030,7 @@ function renderRoom(options = {}) {
   const { source = 'manual' } = options;
   renderNonce += 1;
   const roomNonce = renderNonce;
-  if (source === 'manual' || source === 'auto') {
+  if (source === 'manual') {
     unlockAutoplayChain();
   }
   if (source === 'init') {
@@ -1081,6 +1090,10 @@ function renderRoom(options = {}) {
       if (roomNonce !== renderNonce) return;
       resumeAutoplayChain();
     };
+    currentMediaEl.onpause = () => {
+      if (roomNonce !== renderNonce) return;
+      if (!currentMediaEl.ended) stopAutoplayChain();
+    };
     currentMediaEl.onended = () => {
       if (roomNonce !== renderNonce) return;
       scheduleAutoShift(roomNonce);
@@ -1090,7 +1103,7 @@ function renderRoom(options = {}) {
       setAutoAdvanceEnabled(false);
     };
 
-    const shouldAttemptPlayback = source === 'init' || autoplayUnlocked;
+    const shouldAttemptPlayback = source === 'init' || (autoplayUnlocked && !visitorStoppedChain);
     if (shouldAttemptPlayback) {
       pendingPlayTimer = setTimeout(() => {
         if (roomNonce !== renderNonce || !currentMediaEl) return;
@@ -1146,11 +1159,11 @@ const sanctuaryBtn = document.getElementById('sanctuary-btn');
 document.getElementById('return-link').addEventListener('click', event => {
   event.preventDefault();
   sanctuaryEl.classList.remove('visible');
-  renderRoom({ source: 'manual' });
+  renderRoom({ source: visitorStoppedChain ? 'return' : 'manual' });
 });
 
 sanctuaryBtn.addEventListener('click', () => {
-  clearPlaybackTimers();
+  stopAutoplayChain();
   stopCurrentMedia();
   sanctuaryEl.classList.add('visible');
 });
