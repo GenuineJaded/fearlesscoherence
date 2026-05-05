@@ -148,7 +148,7 @@
     right: 24px;
     z-index: 100;
     background: rgba(17,17,20,0.85);
-    border: 1px solid #2a2a30;
+    border: 1px solid rgba(232,232,235,0.86);
     color: #a8a8ad;
     font-family: inherit;
     font-size: 12px;
@@ -752,7 +752,29 @@ function centerOf(rect) {
   return { x: rect.x + rect.w / 2, y: rect.y + rect.h / 2 };
 }
 
-function inhabitedEdgePressure(cell) {
+function normalizedControlRects() {
+  const W = Math.max(window.innerWidth, 1);
+  const H = Math.max(window.innerHeight, 1);
+  const margin = W < 720 ? 28 : 42;
+  return [...document.querySelectorAll('#sanctuary-btn, [data-shift-control]')]
+    .map(el => {
+      const rect = el.getBoundingClientRect();
+      const x = clamp((rect.left - margin) / W, 0, 1);
+      const y = clamp((rect.top - margin) / H, 0, 1);
+      const x2 = clamp((rect.right + margin) / W, 0, 1);
+      const y2 = clamp((rect.bottom + margin) / H, 0, 1);
+      return { x, y, w: x2 - x, h: y2 - y };
+    })
+    .filter(rect => rect.w > 0 && rect.h > 0);
+}
+
+function overlapArea(a, b) {
+  const x = Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x));
+  const y = Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y));
+  return x * y;
+}
+
+function inhabitedEdgePressure(cell, controlRects = []) {
   const center = centerOf(cell);
   let pressure = 0;
 
@@ -761,10 +783,16 @@ function inhabitedEdgePressure(cell) {
   if (center.x > 0.68 && center.y > 0.70) pressure += 0.30;
   if (center.x > 0.72 && center.y < 0.18) pressure += 0.14;
 
-  return clamp(pressure, 0, 0.48);
+  const cellArea = Math.max(cell.w * cell.h, 0.001);
+  controlRects.forEach(rect => {
+    const overlap = overlapArea(cell, rect) / cellArea;
+    if (overlap > 0) pressure += 0.34 + overlap * 1.8;
+  });
+
+  return clamp(pressure, 0, 1.2);
 }
 
-function readCellPressure(cell, audioRect, placed) {
+function readCellPressure(cell, audioRect, placed, controlRects) {
   const center = centerOf(cell);
   const audioCenter = centerOf(audioRect);
   const audioDistance = clamp(Math.hypot(center.x - audioCenter.x, center.y - audioCenter.y) / 0.72, 0, 1);
@@ -773,7 +801,7 @@ function readCellPressure(cell, audioRect, placed) {
     : 1;
   const relationDistance = clamp(nearestGlyph / 0.34, 0, 1);
   const edgeDepth = clamp(Math.min(cell.x, cell.y, 1 - cell.x - cell.w, 1 - cell.y - cell.h) / 0.18, 0, 1);
-  const occupiedEdge = inhabitedEdgePressure(cell);
+  const occupiedEdge = inhabitedEdgePressure(cell, controlRects);
 
   return { center, audioDistance, relationDistance, edgeDepth, occupiedEdge };
 }
@@ -783,7 +811,7 @@ function chooseCrystallizedCell(glyph, candidates, placed, field) {
   let bestScore = -Infinity;
 
   candidates.forEach((cell, index) => {
-    const pressure = readCellPressure(cell, field.audioRect, placed);
+    const pressure = readCellPressure(cell, field.audioRect, placed, field.controlRects);
     const area = cell.w * cell.h;
     const sameSideCount = placed.filter(other => other.side === cell.side).length;
     const sideAffinity = field.clusterMode && cell.side === field.clusterSide ? 0.36 : 0;
@@ -792,7 +820,7 @@ function chooseCrystallizedCell(glyph, candidates, placed, field) {
       ? pressure.audioDistance + (1 - pressure.edgeDepth) * 0.2
       : 1 - Math.abs(pressure.audioDistance - 0.48);
     const sidePenalty = !field.clusterMode && sameSideCount ? sameSideCount * 0.34 : 0;
-    const roomPressure = pressure.occupiedEdge * (field.isCompact ? 1.35 : 0.75);
+    const roomPressure = pressure.occupiedEdge * (field.isCompact ? 1.65 : 1.05);
     const score = area * 1.35 + spreadScore * 0.9 + lengthFit * 0.5 + sideAffinity - sidePenalty - roomPressure + rand(-0.08, 0.08);
 
     if (score > bestScore) {
@@ -816,6 +844,7 @@ function coherenceClearanceCrystallizer({ zone, background, tonal, fragments }) 
     media: tonal.item,
     audioRect: tonal.rect,
     anchor: tonal.anchor,
+    controlRects: normalizedControlRects(),
     isCompact,
     clusterMode,
     clusterSide
@@ -866,7 +895,7 @@ function targetTactile(glyphs, field) {
     const wordFit = (cellPxW * 0.86) / Math.max(longest * (0.56 + letterSpacing), 1);
     const heightFit = (cellPxH * 0.78) / (lineHeight * (glyph.longForm ? 2.7 : 1.8));
     let fontSize = Math.min(areaSize, wordFit, heightFit, glyph.longForm ? 44 : 52);
-    fontSize *= 0.78 + distance * 0.34 - (field.clusterMode ? 0.08 : 0) - cell.occupiedEdge * 0.10;
+    fontSize *= 0.78 + distance * 0.34 - (field.clusterMode ? 0.08 : 0) - Math.min(cell.occupiedEdge, 0.8) * 0.12;
     fontSize = clamp(fontSize, 14, glyph.longForm ? 42 : 50);
     const align = cellCenterX < audioCenterX - 0.12 ? 'right'
       : cellCenterX > audioCenterX + 0.12 ? 'left'
