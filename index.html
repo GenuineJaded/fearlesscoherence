@@ -868,7 +868,7 @@ function targetTactile(glyphs, field) {
       : pickFrom(ALIGNS);
     const opacityAgency = rand(-0.08, 0.08);
     const relationQuiet = field.clusterMode ? 0.06 : (1 - cell.relationDistance) * 0.10;
-    const opacity = clamp(0.58 + nearSong * 0.22 - edgeQuiet * 0.10 - relationQuiet - (glyph.longForm ? 0.09 : 0) + opacityAgency, 0.42, 0.88);
+    const opacity = clamp(0.68 + nearSong * 0.22 - edgeQuiet * 0.10 - relationQuiet - (glyph.longForm ? 0.09 : 0) + opacityAgency, 0.52, 0.98);
 
     return {
       fragment: glyph,
@@ -877,7 +877,7 @@ function targetTactile(glyphs, field) {
         fontFamily: pickFrom(FONTS),
         fontSize: Math.round(fontSize) + 'px',
         color: pickFrom(palette),
-        opacity: i === deepIdx ? Math.max(0.42, opacity - 0.10) : opacity,
+        opacity: i === deepIdx ? Math.max(0.52, opacity - 0.10) : opacity,
         textAlign: align,
         letterSpacing: letterSpacing.toFixed(3) + 'em',
         lineHeight: lineHeight.toFixed(2),
@@ -900,7 +900,6 @@ let currentMediaEl = null;
 let renderNonce = 0;
 let autoplayUnlocked = false;
 let allowAutoAdvance = false;
-let visitorStoppedChain = false;
 let autoAdvanceTimer = null;
 let pendingPlayTimer = null;
 
@@ -926,16 +925,8 @@ function unlockAutoplayChain() {
 }
 
 function resumeAutoplayChain() {
-  visitorStoppedChain = false;
   autoplayUnlocked = true;
   allowAutoAdvance = true;
-}
-
-function stopAutoplayChain() {
-  visitorStoppedChain = true;
-  autoplayUnlocked = false;
-  allowAutoAdvance = false;
-  clearPlaybackTimers();
 }
 
 function stopCurrentMedia() {
@@ -1030,10 +1021,6 @@ function renderRoom(options = {}) {
       if (roomNonce !== renderNonce) return;
       resumeAutoplayChain();
     };
-    currentMediaEl.onpause = () => {
-      if (roomNonce !== renderNonce) return;
-      if (!currentMediaEl.ended) stopAutoplayChain();
-    };
     currentMediaEl.onended = () => {
       if (roomNonce !== renderNonce) return;
       scheduleAutoShift(roomNonce);
@@ -1043,16 +1030,17 @@ function renderRoom(options = {}) {
       setAutoAdvanceEnabled(false);
     };
 
-    const shouldAttemptPlayback = !visitorStoppedChain;
-    if (shouldAttemptPlayback) {
-      pendingPlayTimer = setTimeout(() => {
-        if (roomNonce !== renderNonce || !currentMediaEl) return;
-        currentMediaEl.play().catch(() => {
-          // Some browsers still block first-load autoplay; leave the chain ready
-          // so a later explicit play can continue the room sequence.
-        });
-      }, tonal.item.kind === 'audio' ? 900 : 650);
-    }
+    currentMediaEl.autoplay = true;
+    const attemptPlayback = () => {
+      if (roomNonce !== renderNonce || !currentMediaEl) return;
+      currentMediaEl.play().catch(() => {
+        // Browser policy may still block first-load audio, but the room no
+        // longer disables itself after a failed attempt.
+      });
+    };
+    requestAnimationFrame(attemptPlayback);
+    currentMediaEl.onloadedmetadata = attemptPlayback;
+    pendingPlayTimer = setTimeout(attemptPlayback, tonal.item.kind === 'audio' ? 900 : 650);
   }
 
   // 4. text — three fragments placed in the open space around the audio
@@ -1099,11 +1087,11 @@ const sanctuaryBtn = document.getElementById('sanctuary-btn');
 document.getElementById('return-link').addEventListener('click', event => {
   event.preventDefault();
   sanctuaryEl.classList.remove('visible');
-  renderRoom({ source: visitorStoppedChain ? 'return' : 'manual' });
+  renderRoom({ source: 'manual' });
 });
 
 sanctuaryBtn.addEventListener('click', () => {
-  stopAutoplayChain();
+  clearPlaybackTimers();
   stopCurrentMedia();
   sanctuaryEl.classList.add('visible');
 });
