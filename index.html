@@ -141,16 +141,12 @@
 
   /* ── shift control ── */
   .sequence-stack {
-    position: fixed;
-    bottom: 24px;
-    right: 24px;
-    z-index: 100;
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 10px;
+    position: static;
   }
   .sequence-btn {
+    position: fixed;
+    right: 24px;
+    z-index: 100;
     background: rgba(17,17,20,0.85);
     border: 1px solid #2a2a30;
     color: #a8a8ad;
@@ -162,12 +158,18 @@
     transition: color 200ms, border-color 200ms, background 200ms;
     text-transform: lowercase;
   }
+  .sequence-stack .sequence-btn:first-child {
+    top: 24px;
+  }
+  #shift-btn {
+    bottom: 24px;
+  }
   .sequence-btn:hover { color: #e8e8eb; border-color: #e8e8eb; background: rgba(25,25,30,0.9); }
 
   #zone-indicator {
     position: fixed;
-    top: 16px;
-    right: 20px;
+    top: 76px;
+    right: 28px;
     z-index: 100;
     font-size: 10px;
     letter-spacing: 2px;
@@ -526,7 +528,7 @@ const AUDIO_RATIO = 760 / 240;
 const VIDEO_RATIO = 16 / 9;
 const recentAnchors = [];
 
-function sonicSort(zone) {
+function tonalTrinityTradition(zone) {
   const pool = [
     ...media.audio.filter(a => a.zone === zone),
     ...media.video.filter(v => v.zone === zone)
@@ -721,13 +723,11 @@ function actuateFragments() {
 
 
 // ═══════════════════════════════════════════════════════════════════════════
-// ENGINE 4B: TACTILE TEXT TARGETER — metabolizes glyphs + cells into presence
+// ENGINE 4B: COHERENCE CLEARANCE CRYSTALLIZER -- clears room pressure into usable cells
 // ═══════════════════════════════════════════════════════════════════════════
-// receives three glyphs (each 11–33 chars) and three cell rectangles.
+// receives the called zone, background, transmission, glyphs, and open cells.
 //
-// it builds pockets around the song, then lets each glyph choose a fitting
-// presence.
-// and legible in its cell — beyond that, fractal randomness within range.
+// it balances spacing before the artifact assigner handles visible form.
 //
 // close glyphs tend smaller and clearer; edge glyphs can carry longer,
 // quieter residue.
@@ -747,38 +747,88 @@ function centerOf(rect) {
   return { x: rect.x + rect.w / 2, y: rect.y + rect.h / 2 };
 }
 
-function chooseTextPocket(glyph, candidates, placed, room, clusterMode, clusterSide) {
-  const audioCenter = centerOf(room.audioRect);
+function inhabitedEdgePressure(cell) {
+  const center = centerOf(cell);
+  let pressure = 0;
+
+  // Fixed controls are part of the room's body. This is a tilt, not a wall.
+  if (center.x < 0.18 && center.y > 0.34 && center.y < 0.66) pressure += 0.22;
+  if (center.x > 0.68 && center.y > 0.70) pressure += 0.30;
+  if (center.x > 0.72 && center.y < 0.18) pressure += 0.14;
+
+  return clamp(pressure, 0, 0.48);
+}
+
+function readCellPressure(cell, audioRect, placed) {
+  const center = centerOf(cell);
+  const audioCenter = centerOf(audioRect);
+  const audioDistance = clamp(Math.hypot(center.x - audioCenter.x, center.y - audioCenter.y) / 0.72, 0, 1);
+  const nearestGlyph = placed.length
+    ? Math.min(...placed.map(other => Math.hypot(center.x - other.center.x, center.y - other.center.y)))
+    : 1;
+  const relationDistance = clamp(nearestGlyph / 0.34, 0, 1);
+  const edgeDepth = clamp(Math.min(cell.x, cell.y, 1 - cell.x - cell.w, 1 - cell.y - cell.h) / 0.18, 0, 1);
+  const occupiedEdge = inhabitedEdgePressure(cell);
+
+  return { center, audioDistance, relationDistance, edgeDepth, occupiedEdge };
+}
+
+function chooseCrystallizedCell(glyph, candidates, placed, field) {
   let best = candidates[0];
   let bestScore = -Infinity;
 
   candidates.forEach((cell, index) => {
-    const center = centerOf(cell);
-    const audioDistance = clamp(Math.hypot(center.x - audioCenter.x, center.y - audioCenter.y) / 0.72, 0, 1);
-    const nearestGlyph = placed.length
-      ? Math.min(...placed.map(other => Math.hypot(center.x - other.center.x, center.y - other.center.y)))
-      : 1;
-    const relationDistance = clamp(nearestGlyph / 0.34, 0, 1);
-    const edgeDepth = clamp(Math.min(cell.x, cell.y, 1 - cell.x - cell.w, 1 - cell.y - cell.h) / 0.18, 0, 1);
+    const pressure = readCellPressure(cell, field.audioRect, placed);
     const area = cell.w * cell.h;
     const sameSideCount = placed.filter(other => other.side === cell.side).length;
-    const sideAffinity = clusterMode && cell.side === clusterSide ? 0.36 : 0;
-    const spreadScore = clusterMode ? 1 - Math.abs(relationDistance - 0.42) : relationDistance;
-    const lengthFit = glyph.longForm ? audioDistance + (1 - edgeDepth) * 0.2 : 1 - Math.abs(audioDistance - 0.48);
-    const sidePenalty = !clusterMode && sameSideCount ? sameSideCount * 0.34 : 0;
-    const score = area * 1.4 + spreadScore * 0.9 + lengthFit * 0.5 + sideAffinity - sidePenalty + rand(-0.08, 0.08);
+    const sideAffinity = field.clusterMode && cell.side === field.clusterSide ? 0.36 : 0;
+    const spreadScore = field.clusterMode ? 1 - Math.abs(pressure.relationDistance - 0.42) : pressure.relationDistance;
+    const lengthFit = glyph.longForm
+      ? pressure.audioDistance + (1 - pressure.edgeDepth) * 0.2
+      : 1 - Math.abs(pressure.audioDistance - 0.48);
+    const sidePenalty = !field.clusterMode && sameSideCount ? sameSideCount * 0.34 : 0;
+    const roomPressure = pressure.occupiedEdge * (field.isCompact ? 1.35 : 0.75);
+    const score = area * 1.35 + spreadScore * 0.9 + lengthFit * 0.5 + sideAffinity - sidePenalty - roomPressure + rand(-0.08, 0.08);
 
     if (score > bestScore) {
       bestScore = score;
-      best = { ...cell, center, audioDistance, relationDistance, edgeDepth, candidateIndex: index };
+      best = { ...cell, ...pressure, candidateIndex: index, coherenceScore: score };
     }
   });
 
   return best;
 }
 
-function targetTactile(glyphs, cells, room) {
-  const palette = ZONE_PALETTES[room.zone];
+function coherenceClearanceCrystallizer({ zone, background, tonal, fragments }) {
+  const fallback = [{ x: 0.06, y: 0.16, w: 0.88, h: 0.68, side: 'field' }];
+  const available = tonal.others.length ? [...tonal.others] : fallback;
+  const isCompact = window.innerWidth < 720 || window.innerHeight < 520;
+  const clusterMode = Math.random() < (isCompact ? 0.08 : 0.14);
+  const clusterSide = clusterMode ? pickFrom(available).side : null;
+  const field = {
+    zone,
+    background,
+    media: tonal.item,
+    audioRect: tonal.rect,
+    anchor: tonal.anchor,
+    isCompact,
+    clusterMode,
+    clusterSide
+  };
+  const placed = [];
+  const cells = fragments.map(fragment => {
+    const cell = chooseCrystallizedCell(fragment, available, placed, field);
+    available.splice(cell.candidateIndex, 1);
+    placed.push({ center: cell.center, side: cell.side });
+    return cell;
+  });
+
+  return { ...field, cells };
+}
+
+// ENGINE 4C: MORPHOLOGICAL ARTIFACT ASSIGNER -- renders fragments into form
+function targetTactile(glyphs, field) {
+  const palette = ZONE_PALETTES[field.zone];
 
   // canvas in pixels — sizing needs real dimensions
   const W = window.innerWidth;
@@ -787,14 +837,8 @@ function targetTactile(glyphs, cells, room) {
   // composition rolls — once per room
   const deepIdx = Math.floor(Math.random() * 3);
   const rotateIdx = Math.random() < 0.22 ? Math.floor(Math.random() * 3) : -1;
-  const clusterMode = Math.random() < 0.14;
-  const available = cells.length ? [...cells] : [{ x: 0.06, y: 0.16, w: 0.88, h: 0.68, side: 'field' }];
-  const clusterSide = clusterMode ? pickFrom(available).side : null;
-  const placed = [];
-
   return glyphs.map((glyph, i) => {
-    const cell = chooseTextPocket(glyph, available, placed, room, clusterMode, clusterSide);
-    available.splice(cell.candidateIndex, 1);
+    const cell = field.cells[i] || field.cells[field.cells.length - 1];
 
     // ─── size: emerges from filling the cell's actual area ───
     // each char ≈ 0.55em wide × 1.4em tall ≈ 0.77 em²
@@ -804,7 +848,7 @@ function targetTactile(glyphs, cells, room) {
     const text = glyph.text;
     const words = text.split(/\s+/).filter(Boolean);
     const longest = words.reduce((max, word) => Math.max(max, word.length), 1);
-    const audioCenterX = room.audioRect.x + room.audioRect.w / 2;
+    const audioCenterX = field.audioRect.x + field.audioRect.w / 2;
     const cellCenterX = cell.x + cell.w / 2;
     const distance = cell.audioDistance;
     const edgeDepth = cell.edgeDepth;
@@ -817,15 +861,14 @@ function targetTactile(glyphs, cells, room) {
     const wordFit = (cellPxW * 0.86) / Math.max(longest * (0.56 + letterSpacing), 1);
     const heightFit = (cellPxH * 0.78) / (lineHeight * (glyph.longForm ? 2.7 : 1.8));
     let fontSize = Math.min(areaSize, wordFit, heightFit, glyph.longForm ? 44 : 52);
-    fontSize *= 0.78 + distance * 0.34 - (clusterMode ? 0.08 : 0);
+    fontSize *= 0.78 + distance * 0.34 - (field.clusterMode ? 0.08 : 0) - cell.occupiedEdge * 0.10;
     fontSize = clamp(fontSize, 14, glyph.longForm ? 42 : 50);
     const align = cellCenterX < audioCenterX - 0.12 ? 'right'
       : cellCenterX > audioCenterX + 0.12 ? 'left'
       : pickFrom(ALIGNS);
     const opacityAgency = rand(-0.08, 0.08);
-    const relationQuiet = clusterMode ? 0.06 : (1 - cell.relationDistance) * 0.10;
+    const relationQuiet = field.clusterMode ? 0.06 : (1 - cell.relationDistance) * 0.10;
     const opacity = clamp(0.58 + nearSong * 0.22 - edgeQuiet * 0.10 - relationQuiet - (glyph.longForm ? 0.09 : 0) + opacityAgency, 0.42, 0.88);
-    placed.push({ center: cell.center, side: cell.side });
 
     return {
       fragment: glyph,
@@ -930,11 +973,8 @@ function renderRoom(options = {}) {
   const { source = 'manual' } = options;
   renderNonce += 1;
   const roomNonce = renderNonce;
-  if (source === 'manual') {
+  if (source === 'manual' || source === 'init' || source === 'auto') {
     unlockAutoplayChain();
-  }
-  if (source === 'init') {
-    allowAutoAdvance = true;
   }
   stopCurrentMedia();
 
@@ -956,32 +996,32 @@ function renderRoom(options = {}) {
     requestAnimationFrame(() => { bgEl.style.opacity = bg.opacity; });
   }, 300);
 
-  // 3. sonic sort — audio cell + 3 remaining cells
-  const sonic = sonicSort(zone);
+  // 3. Tonal Trinity Tradition — media cell + 3 remaining cells
+  const tonal = tonalTrinityTradition(zone);
 
   // audio cell
   const audioCell = document.createElement('div');
   audioCell.className = 'cell cell-audio';
   Object.assign(audioCell.style, {
-    left: pct(sonic.rect.x), top: pct(sonic.rect.y),
-    width: pct(sonic.rect.w), height: pct(sonic.rect.h)
+    left: pct(tonal.rect.x), top: pct(tonal.rect.y),
+    width: pct(tonal.rect.w), height: pct(tonal.rect.h)
   });
 
-  if (sonic.item.kind === 'audio') {
+  if (tonal.item.kind === 'audio') {
     audioCell.classList.add('audio-shell');
     audioCell.innerHTML = `<div class="audio-card">
       <div class="audio-meta">
         <span class="audio-label">transmission</span>
-        <span class="audio-title">${sonic.item.title}</span>
+        <span class="audio-title">${tonal.item.title}</span>
       </div>
-      <audio controls autoplay preload="metadata" src="${sonic.item.src}"></audio>
+      <audio controls autoplay preload="metadata" src="${tonal.item.src}"></audio>
     </div>`;
   } else {
-    audioCell.innerHTML = `<video src="${sonic.item.src}" controls autoplay preload="metadata"></video>`;
+    audioCell.innerHTML = `<video src="${tonal.item.src}" controls autoplay preload="metadata"></video>`;
   }
   roomEl.appendChild(audioCell);
 
-  currentMediaEl = sonic.item.kind === 'audio'
+  currentMediaEl = tonal.item.kind === 'audio'
     ? audioCell.querySelector('audio')
     : audioCell.querySelector('video');
 
@@ -1003,25 +1043,27 @@ function renderRoom(options = {}) {
       setAutoAdvanceEnabled(false);
     };
 
-    const shouldAttemptPlayback = source === 'init' || (autoplayUnlocked && !visitorStoppedChain);
+    const shouldAttemptPlayback = !visitorStoppedChain;
     if (shouldAttemptPlayback) {
       pendingPlayTimer = setTimeout(() => {
         if (roomNonce !== renderNonce || !currentMediaEl) return;
         currentMediaEl.play().catch(() => {
-          if (roomNonce !== renderNonce) return;
-          setAutoAdvanceEnabled(false);
+          // Some browsers still block first-load autoplay; leave the chain ready
+          // so a later explicit play can continue the room sequence.
         });
-      }, sonic.item.kind === 'audio' ? 900 : 650);
+      }, tonal.item.kind === 'audio' ? 900 : 650);
     }
   }
 
   // 4. text — three fragments placed in the open space around the audio
   const fragments = actuateFragments();
-  const assignments = targetTactile(fragments, sonic.others, {
+  const field = coherenceClearanceCrystallizer({
     zone,
-    anchor: sonic.anchor,
-    audioRect: sonic.rect
+    background: bg.item,
+    tonal,
+    fragments
   });
+  const assignments = targetTactile(fragments, field);
 
   assignments.forEach(({ fragment, cell: rect, style }, i) => {
     const textCell = document.createElement('div');

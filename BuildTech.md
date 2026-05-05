@@ -6,7 +6,7 @@ Receives the called zone. Receives the written corpus.
 
 The corpus here is the stories, the constitution, the transmissions, the writings about Mr. E and Brayne Snax and Paradoxic and Michael Mistree and QC. The Cryptic Syndicate body of text. Unlike the audio, video, and background pools, the corpus is not zone-tagged — text doesn't carry elemental belonging the way sound and image do. The corpus is one body. The zone influences what surfaces from it, but doesn't restrict it.
 
-Three text presences appear per room. Three, because three of the four cells are text cells (the fourth is the audio cell from the Sonic Sorting System).
+Three text presences appear per room. Three, because three of the four cells are text cells (the fourth is the audio cell from the Tonal Trinity Tradition).
 
 *What the engine may do.* Select an existing fragment from the corpus as-is. Recombine — take a sentence from one place and a sentence from another, place them adjacent without smoothing them together. Mutate — take a fragment and substitute a word, drop a clause, invert a phrase. Generate — produce something new, but only if the writing feels latent in the field already.
 
@@ -42,7 +42,7 @@ Generate. Sample two or three fragments, weighted by zone proximity, and use the
 
 **Morphological Artifact Assigner**
 
-Receives the three text presences. Receives the three remaining cell rectangles from the Sonic Sorting System (the cells the audio doesn't occupy).
+Receives the three text presences. Receives the three crystallized cell opportunities from the Coherence Clearance Crystallizer.
 
 This engine doesn't decide what the text means. It decides how the text appears.
 
@@ -74,9 +74,21 @@ Emphasis. Per presence, decide whether one or two words within the fragment rece
 
 ---
 
+**Coherence Clearance Crystallizer**
+
+Receives the called zone, chosen background, Tonal Trinity Tradition output, and the three text presences.
+
+This engine doesn't write text and doesn't style text. It clears the room. It reads the relationship between the called zone, the transmission cell, the background pressure, fixed controls, viewport shape, and the available cell pockets. It returns three cell opportunities that the Morphological Artifact Assigner can inhabit without having to carry whole-room balance.
+
+Its intelligence lives in spacing, pressure, and relation. It should use tilts, weights, and memory, not hard fences. It can prefer cells that let the three presences breathe around the transmission. It can soften cells near fixed controls on small screens. It can let one room cluster and another spread. It should make the field more coherent without making it predictable.
+
+Inputs: called zone, background item, Tonal Trinity Tradition result, three text presences, recent room memory. Outputs: crystallized cell opportunities and room pressure metadata.
+
+---
+
 The whole flow once these exist:
 
-Shift sequence triggers. Navigator calls the next zone. Visualized Manifestation Placer crossfades the background field. Sonic Sorting System picks audio, shapes its cell, anchors it, subdivides the leftover into three cell rectangles. Text Fragment Actuator emits three text presences shaped by the zone. Morphological Artifact Assigner takes those three presences and the three cell rectangles and produces the rendered text cells. The room appears. Wait. Shift sequence triggers again.
+Shift sequence triggers. Navigator calls the next zone. Visualized Manifestation Placer crossfades the background field. Tonal Trinity Tradition picks audio, shapes its cell, anchors it, subdivides the leftover into cell opportunities. Text Fragment Actuator emits three text presences shaped by the zone. Coherence Clearance Crystallizer clears the room pressure into three balanced cells. Morphological Artifact Assigner takes those three presences and the crystallized cells and produces the rendered text cells. The room appears. Wait. Shift sequence triggers again.
 
 ---
 
@@ -102,7 +114,7 @@ Inputs: called zone, corpus, recent-fragments memory. Outputs: three fragments.
 
 **Morphological Artifact Assigner**
 
-Receives three fragments. Receives three cell rectangles from the Sonic Sorting System.
+Receives three fragments. Receives three crystallized cell opportunities from the Coherence Clearance Crystallizer.
 
 Places them in the cells. Sizes them so they fit. Makes the placement novel — the three fragments aren't styled identically; the typography varies between rooms.
 
@@ -121,4 +133,3 @@ Recent-decisions memory so consecutive rooms don't look identical.
 Inputs: three fragments, three cell rectangles, called zone, recent-decisions memory. Outputs: three rendered text cells.
 
 ---
-

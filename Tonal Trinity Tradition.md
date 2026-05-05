@@ -1,4 +1,4 @@
-\<\!-- Sonic Sorting System  
+\<\!-- Tonal Trinity Tradition  
      receives a called zone.  
      picks one auditory presence (suno or video).  
      shapes its cell from the medium's natural ratio.  
@@ -204,7 +204,7 @@
 
 \<div class="wrap"\>  
   \<header\>  
-    \<h1\>// sonic sorting system\</h1\>  
+    \<h1\>// tonal trinity tradition\</h1\>  
     \<div class="sub"\>zone → audio · suno or video · cell shaped from medium · anchored · leftover subdivided into three\</div\>  
   \</header\>
 
@@ -492,7 +492,7 @@
   const recentAnchors \= \[\]; // memory window for alternation  
   const RECENT\_MAX \= 2;
 
-  function sonicSort(zone) {  
+  function tonalTrinityTradition(zone) {  
     const pool \= \[  
       ...corpus.audio.filter(a \=\> a.zone \=== zone),  
       ...corpus.video.filter(v \=\> v.zone \=== zone)  
@@ -635,7 +635,7 @@
   }
 
   function call(zone) {  
-    last \= sonicSort(zone);  
+    last \= tonalTrinityTradition(zone);  
     renderCalled(last);  
     renderRoom(last);  
     renderInfo(last);  
