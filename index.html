@@ -72,6 +72,7 @@
     background: linear-gradient(180deg, rgba(8,8,10,0.36), rgba(18,18,24,0.16));
   }
   .audio-card {
+    position: relative;
     width: 100%;
     height: 100%;
     display: flex;
@@ -83,6 +84,8 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
+    min-height: 42px;
+    padding-right: min(52%, 340px);
     color: rgba(232,232,236,0.94);
   }
   .audio-label {
@@ -92,9 +95,14 @@
     color: rgba(232,232,236,0.58);
   }
   .audio-title {
+    position: absolute;
+    top: 0;
+    right: 0;
+    max-width: min(52%, 340px);
     font-size: 14px;
     line-height: 1.35;
     letter-spacing: 0.08em;
+    text-align: right;
     color: rgba(245,245,248,0.96);
   }
   .cell-audio audio {
