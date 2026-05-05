@@ -412,22 +412,22 @@ const audioTracks = [
   'https://cryptic-syndicate.com/wp-content/uploads/2026/04/Liminal-Paradox.mp3',
   'https://cryptic-syndicate.com/wp-content/uploads/2026/04/Juxtaposition-Mathematician.mp3',
   'https://cryptic-syndicate.com/wp-content/uploads/2026/04/Irreducible-Core.mp3',
-  'https://cryptic-syndicate.com/wp-content/uploads/2026/05/Alchemy-From-Me-to-Me-1.mp3',
-  'https://cryptic-syndicate.com/wp-content/uploads/2026/05/Alcky-1.mp3',
-  'https://cryptic-syndicate.com/wp-content/uploads/2026/05/Bummer-Hummer-1.mp3',
-  'https://cryptic-syndicate.com/wp-content/uploads/2026/05/Deliberate-Misuse-of-Tissues-1.mp3',
-  'https://cryptic-syndicate.com/wp-content/uploads/2026/05/Ephemeral-Echoes-1.mp3',
-  'https://cryptic-syndicate.com/wp-content/uploads/2026/05/Functionally-Factual-Fully-Forgetting-1.mp3',
-  'https://cryptic-syndicate.com/wp-content/uploads/2026/05/Gluefully-1.mp3',
-  'https://cryptic-syndicate.com/wp-content/uploads/2026/05/Glueless-1.mp3',
-  'https://cryptic-syndicate.com/wp-content/uploads/2026/05/God-Dog-1.mp3',
-  'https://cryptic-syndicate.com/wp-content/uploads/2026/05/Jogging-for-Gniggoj-Sake-1.mp3',
-  'https://cryptic-syndicate.com/wp-content/uploads/2026/05/Living-While-Trying-Dying-Gracefully-1.mp3',
-  'https://cryptic-syndicate.com/wp-content/uploads/2026/05/Managed-to-Check-Why-We-Quantify-1.mp3',
-  'https://cryptic-syndicate.com/wp-content/uploads/2026/05/Murm-Full-Worm-Hole-1.mp3',
-  'https://cryptic-syndicate.com/wp-content/uploads/2026/05/Name-Went-Private-Plane-Jet-1.mp3',
-  'https://cryptic-syndicate.com/wp-content/uploads/2026/05/Normal-Sentence-Placement-for-Disorientation-2.mp3',
-  'https://cryptic-syndicate.com/wp-content/uploads/2026/05/Psychic-Slip-Stream-1.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/05/Alchemy-From-Me-to-Me.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/05/Alcky.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/05/Bummer-Hummer.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/05/Deliberate-Misuse-of-Tissues.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/05/Ephemeral-Echoes.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/05/Functionally-Factual-Fully-Forgetting.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/05/Gluefully.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/05/Glueless.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/05/God-Dog.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/05/Jogging-for-Gniggoj-Sake.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/05/Living-While-Trying-Dying-Gracefully.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/05/Managed-to-Check-Why-We-Quantify.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/05/Murm-Full-Worm-Hole.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/05/Name-Went-Private-Plane-Jet.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/05/Normal-Sentence-Placement-for-Disorientation.mp3',
+  'https://cryptic-syndicate.com/wp-content/uploads/2026/05/Psychic-Slip-Stream.mp3',
   'https://cryptic-syndicate.com/wp-content/uploads/2026/05/Shimmering-Shifting-Substrate-Sunshine.mp3',
   'https://cryptic-syndicate.com/wp-content/uploads/2026/05/Sippin-Solace-Sizzurp.mp3',
   'https://cryptic-syndicate.com/wp-content/uploads/2026/05/Solace-Slowly-Smiles.mp3',
@@ -443,7 +443,12 @@ const audioTracks = [
 
 function titleFromAudioUrl(src) {
   const file = decodeURIComponent(src.split('/').pop() || src);
-  return file.replace(/\.mp3$/i, '');
+  return file
+    .replace(/\.mp3$/i, '')
+    .replace(/-\d+$/i, '')
+    .replace(/[-_]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 const videoNames = [
