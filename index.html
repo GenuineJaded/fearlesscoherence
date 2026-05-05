@@ -672,15 +672,23 @@ function splitStrip(strip, axis) {
 // compose new glyphs in this length band, using the corpus as inspiration
 // rather than only as source. same metabolic shape; richer digestion.
 
-const GLYPH_MIN = 11;
-const GLYPH_MAX = 33;
-const LONG_GLYPH_MIN = 34;
-const LONG_GLYPH_MAX = 78;
+const GLYPH_MIN = 46;
+const GLYPH_MAX = 118;
+const LONG_GLYPH_MIN = 119;
+const LONG_GLYPH_MAX = 230;
 const recentSlices = [];
 const SLICE_MEMORY = 12;
 
+function cleanGlyphText(text) {
+  return String(text)
+    .replace(/[‘’]/g, "'")
+    .replace(/[^A-Za-z0-9'\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function sliceGlyph(text, minLen = GLYPH_MIN, maxLen = GLYPH_MAX) {
-  text = String(text).trim();
+  text = cleanGlyphText(text);
   if (text.length < minLen) return null;
   if (text.length <= maxLen) return text;
 
@@ -691,13 +699,13 @@ function sliceGlyph(text, minLen = GLYPH_MIN, maxLen = GLYPH_MAX) {
     while (end <= words.length) {
       const candidate = words.slice(start, end).join(' ');
       if (candidate.length > maxLen) {
-        const stepBack = words.slice(start, end - 1).join(' ');
+        const stepBack = cleanGlyphText(words.slice(start, end - 1).join(' '));
         if (stepBack.length >= minLen) return stepBack;
         break;
       }
       end++;
     }
-    const tail = words.slice(start, Math.min(end, words.length)).join(' ');
+    const tail = cleanGlyphText(words.slice(start, Math.min(end, words.length)).join(' '));
     if (tail.length >= minLen && tail.length <= maxLen) return tail;
   }
   return null;
@@ -723,7 +731,7 @@ function pickGlyph(longForm = false) {
 }
 
 function actuateFragments() {
-  return [0, 1, 2].map(() => pickGlyph(Math.random() < 0.18));
+  return [0, 1, 2].map(() => pickGlyph(Math.random() < 0.32));
 }
 
 
@@ -774,6 +782,14 @@ function overlapArea(a, b) {
   return x * y;
 }
 
+function rectArea(rect) {
+  return Math.max(rect.w * rect.h, 0.001);
+}
+
+function overlapRatio(a, b) {
+  return overlapArea(a, b) / Math.min(rectArea(a), rectArea(b));
+}
+
 function inhabitedEdgePressure(cell, controlRects = []) {
   const center = centerOf(cell);
   let pressure = 0;
@@ -783,7 +799,7 @@ function inhabitedEdgePressure(cell, controlRects = []) {
   if (center.x > 0.68 && center.y > 0.70) pressure += 0.30;
   if (center.x > 0.72 && center.y < 0.18) pressure += 0.14;
 
-  const cellArea = Math.max(cell.w * cell.h, 0.001);
+  const cellArea = rectArea(cell);
   controlRects.forEach(rect => {
     const overlap = overlapArea(cell, rect) / cellArea;
     if (overlap > 0) pressure += 0.34 + overlap * 1.8;
@@ -814,6 +830,7 @@ function chooseCrystallizedCell(glyph, candidates, placed, field) {
     const pressure = readCellPressure(cell, field.audioRect, placed, field.controlRects);
     const area = cell.w * cell.h;
     const sameSideCount = placed.filter(other => other.side === cell.side).length;
+    const collisionPressure = placed.reduce((max, other) => Math.max(max, overlapRatio(cell, other.rect)), 0);
     const sideAffinity = field.clusterMode && cell.side === field.clusterSide ? 0.36 : 0;
     const spreadScore = field.clusterMode ? 1 - Math.abs(pressure.relationDistance - 0.42) : pressure.relationDistance;
     const lengthFit = glyph.longForm
@@ -821,7 +838,8 @@ function chooseCrystallizedCell(glyph, candidates, placed, field) {
       : 1 - Math.abs(pressure.audioDistance - 0.48);
     const sidePenalty = !field.clusterMode && sameSideCount ? sameSideCount * 0.34 : 0;
     const roomPressure = pressure.occupiedEdge * (field.isCompact ? 1.65 : 1.05);
-    const score = area * 1.35 + spreadScore * 0.9 + lengthFit * 0.5 + sideAffinity - sidePenalty - roomPressure + rand(-0.08, 0.08);
+    const collisionPenalty = collisionPressure * 4.4 + (collisionPressure > 0.18 ? 2.2 : 0);
+    const score = area * 1.35 + spreadScore * 0.9 + lengthFit * 0.5 + sideAffinity - sidePenalty - roomPressure - collisionPenalty + rand(-0.08, 0.08);
 
     if (score > bestScore) {
       bestScore = score;
@@ -850,11 +868,16 @@ function coherenceClearanceCrystallizer({ zone, background, tonal, fragments }) 
     clusterSide
   };
   const placed = [];
-  const cells = fragments.map(fragment => {
+  const cells = [];
+  fragments.forEach((fragment, index) => {
+    if (!available.length) available.push(...fallback);
     const cell = chooseCrystallizedCell(fragment, available, placed, field);
-    available.splice(cell.candidateIndex, 1);
-    placed.push({ center: cell.center, side: cell.side });
-    return cell;
+    const withoutSelected = available.filter((_, candidateIndex) => candidateIndex !== cell.candidateIndex);
+    const separated = withoutSelected.filter(candidate => overlapRatio(candidate, cell) < 0.08);
+    const remaining = fragments.length - index - 1;
+    available.splice(0, available.length, ...(separated.length >= remaining ? separated : withoutSelected));
+    placed.push({ center: cell.center, side: cell.side, rect: cell });
+    cells.push(cell);
   });
 
   return { ...field, cells };
@@ -890,13 +913,13 @@ function targetTactile(glyphs, field) {
     const edgeQuiet = 1 - edgeDepth;
     const lineHeight = 1.14 + Math.random() * 0.22;
     const letterSpacing = Math.random() * (glyph.longForm ? 0.022 : 0.044);
-    const targetFill = glyph.longForm ? rand(0.12, 0.20) : rand(0.18, 0.30);
+    const targetFill = glyph.longForm ? rand(0.065, 0.11) : rand(0.09, 0.16);
     const areaSize = Math.sqrt((cellPxArea * targetFill) / Math.max(text.length * 0.72, 1));
     const wordFit = (cellPxW * 0.86) / Math.max(longest * (0.56 + letterSpacing), 1);
-    const heightFit = (cellPxH * 0.78) / (lineHeight * (glyph.longForm ? 2.7 : 1.8));
-    let fontSize = Math.min(areaSize, wordFit, heightFit, glyph.longForm ? 44 : 52);
+    const heightFit = (cellPxH * 0.78) / (lineHeight * (glyph.longForm ? 5.4 : 3.6));
+    let fontSize = Math.min(areaSize, wordFit, heightFit, glyph.longForm ? 30 : 36);
     fontSize *= 0.78 + distance * 0.34 - (field.clusterMode ? 0.08 : 0) - Math.min(cell.occupiedEdge, 0.8) * 0.12;
-    fontSize = clamp(fontSize, 14, glyph.longForm ? 42 : 50);
+    fontSize = clamp(fontSize, 12, glyph.longForm ? 30 : 36);
     const align = cellCenterX < audioCenterX - 0.12 ? 'right'
       : cellCenterX > audioCenterX + 0.12 ? 'left'
       : pickFrom(ALIGNS);
