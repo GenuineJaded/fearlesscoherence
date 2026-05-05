@@ -1021,8 +1021,11 @@ function renderRoom(options = {}) {
   const { source = 'manual' } = options;
   renderNonce += 1;
   const roomNonce = renderNonce;
-  if (source === 'manual' || source === 'init' || source === 'auto') {
+  if (source === 'manual' || source === 'auto') {
     unlockAutoplayChain();
+  }
+  if (source === 'init') {
+    allowAutoAdvance = true;
   }
   stopCurrentMedia();
 
@@ -1087,17 +1090,16 @@ function renderRoom(options = {}) {
       setAutoAdvanceEnabled(false);
     };
 
-    currentMediaEl.autoplay = true;
-    const attemptPlayback = () => {
-      if (roomNonce !== renderNonce || !currentMediaEl) return;
-      currentMediaEl.play().catch(() => {
-        // Browser policy may still block first-load audio, but the room no
-        // longer disables itself after a failed attempt.
-      });
-    };
-    requestAnimationFrame(attemptPlayback);
-    currentMediaEl.onloadedmetadata = attemptPlayback;
-    pendingPlayTimer = setTimeout(attemptPlayback, tonal.item.kind === 'audio' ? 900 : 650);
+    const shouldAttemptPlayback = source === 'init' || autoplayUnlocked;
+    if (shouldAttemptPlayback) {
+      pendingPlayTimer = setTimeout(() => {
+        if (roomNonce !== renderNonce || !currentMediaEl) return;
+        currentMediaEl.play().catch(() => {
+          if (roomNonce !== renderNonce) return;
+          setAutoAdvanceEnabled(false);
+        });
+      }, tonal.item.kind === 'audio' ? 900 : 650);
+    }
   }
 
   // 4. text — three fragments placed in the open space around the audio
