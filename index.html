@@ -448,7 +448,6 @@ const audioTracks = [
   'https://cryptic-syndicate.com/wp-content/uploads/2026/05/Unker-Preshure.mp3',
   'https://cryptic-syndicate.com/wp-content/uploads/2026/05/Yelling-Back.mp3'
 ];
-
 function titleFromAudioUrl(src) {
   const file = decodeURIComponent(src.split('/').pop() || src);
   return file
@@ -458,12 +457,10 @@ function titleFromAudioUrl(src) {
     .replace(/\s+/g, ' ')
     .trim();
 }
-
 const videoNames = [
   'AmazingBlazingMusing','AmusingMaze','AteSnax','CheckaDough','GanGain',
   'GrimmSales','Hrmph','InterestingTho','NotMeProbly','Trinne','TrippleTrial'
 ];
-
 const bgFiles = [
   'Mis1.jpg','Mis3-scaled.jpg','Mus2.jpeg','Mus4-scaled.png','Mus5.png',
   'Mus6-scaled.png','Mus7-scaled.png','Mus8.png','Mus9-scaled.png','Mus10-scaled.png',
@@ -474,20 +471,16 @@ const bgFiles = [
   'https://cryptic-syndicate.com/wp-content/uploads/2026/05/3.jpg',
   'https://cryptic-syndicate.com/wp-content/uploads/2026/05/4.jpg'
 ];
-
 function sourceFromCdnOrUrl(src) {
   return /^https?:\/\//.test(src) ? src : CDN + src;
 }
-
 function idFromSource(src) {
   return (src.split('/').pop() || src);
 }
-
 // ── roll zone tags at init (one source of truth) ──────────────────────────
 const roll = () => ZONES[Math.floor(Math.random() * ZONES.length)];
 const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const rand = (lo, hi) => lo + Math.random() * (hi - lo);
-
 const media = {
   audio: audioTracks.map(src => {
     const title = titleFromAudioUrl(src);
@@ -541,19 +534,74 @@ const AUDIO_RATIO = 760 / 240;
 const VIDEO_RATIO = 16 / 9;
 const recentAnchors = [];
 
+// ── UI button exclusion zones (normalized 0–1) ────────────────────────────
+// These are computed fresh each call so they reflect the live viewport.
+// Returns an array of { x, y, w, h } rects with a generous clearance margin.
+function getButtonExclusionZones() {
+  const W = Math.max(window.innerWidth, 1);
+  const H = Math.max(window.innerHeight, 1);
+  // Clearance: enough so the media cell edge never clips a button
+  const marginPx = Math.max(W, H) < 720 ? 18 : 28;
+  return [...document.querySelectorAll('#sanctuary-btn, [data-shift-control]')]
+    .map(el => {
+      const r = el.getBoundingClientRect();
+      const x  = Math.max(0, (r.left   - marginPx) / W);
+      const y  = Math.max(0, (r.top    - marginPx) / H);
+      const x2 = Math.min(1, (r.right  + marginPx) / W);
+      const y2 = Math.min(1, (r.bottom + marginPx) / H);
+      return { x, y, w: x2 - x, h: y2 - y };
+    })
+    .filter(r => r.w > 0 && r.h > 0);
+}
+
+// Does rect `a` overlap rect `b`?
+function rectsOverlap(a, b) {
+  return a.x < b.x + b.w && a.x + a.w > b.x &&
+         a.y < b.y + b.h && a.y + a.h > b.y;
+}
+
+// Nudge a media rect away from all exclusion zones.
+// Returns the adjusted rect (may be unchanged if no overlap).
+function nudgeAwayFromButtons(rect, exclusions) {
+  let { x, y, w, h } = rect;
+  const G = 0.012;
+  for (const ex of exclusions) {
+    if (!rectsOverlap({ x, y, w, h }, ex)) continue;
+    // Compute overlap on each axis and push out on the smallest one
+    const overlapLeft  = (x + w) - ex.x;
+    const overlapRight = (ex.x + ex.w) - x;
+    const overlapTop   = (y + h) - ex.y;
+    const overlapBot   = (ex.y + ex.h) - y;
+    const minH = Math.min(overlapLeft, overlapRight);
+    const minV = Math.min(overlapTop,  overlapBot);
+    if (minH <= minV) {
+      // push horizontally
+      if (overlapLeft < overlapRight) x = ex.x - w - G;
+      else                             x = ex.x + ex.w + G;
+    } else {
+      // push vertically
+      if (overlapTop < overlapBot) y = ex.y - h - G;
+      else                          y = ex.y + ex.h + G;
+    }
+    // clamp back into viewport
+    x = Math.max(G, Math.min(1 - w - G, x));
+    y = Math.max(G, Math.min(1 - h - G, y));
+  }
+  return { x, y, w, h };
+}
+
 function tonalTrinityTradition(zone) {
   const pool = [
     ...media.audio.filter(a => a.zone === zone),
     ...media.video.filter(v => v.zone === zone)
   ];
   if (!pool.length) {
-    // fallback: pick from any zone
     pool.push(...media.audio, ...media.video);
   }
   const item = pick(pool);
   const r = item.kind === 'audio' ? AUDIO_RATIO : VIDEO_RATIO;
 
-  // shape the audio cell
+  // shape the media cell
   const scaleRange = item.kind === 'audio' ? [0.11, 0.18] : [0.22, 0.34];
   const a = rand(...scaleRange);
   const ar = (window.innerWidth / Math.max(window.innerHeight, 1)) || 1.6;
@@ -593,17 +641,21 @@ function tonalTrinityTradition(zone) {
     }
   }
 
-  // subdivide leftover into 3 cells
-  const others = subdivide(rect, anchor, G);
+  // ── FIX: push media cell away from fixed UI buttons ──────────────────────
+  const exclusions = getButtonExclusionZones();
+  rect = nudgeAwayFromButtons(rect, exclusions);
+
+  // subdivide leftover into text cell pockets, also excluding button zones
+  const others = subdivide(rect, anchor, G, exclusions);
 
   return { item, rect, anchor, others };
 }
 
-function subdivide(audioRect, anchor, G) {
+function subdivide(audioRect, anchor, G, exclusions = []) {
   const clear = Math.max(G * 2, 0.026);
-  const left = G;
-  const right = 1 - G;
-  const top = G;
+  const left   = G;
+  const right  = 1 - G;
+  const top    = G;
   const bottom = 1 - G;
   const ax0 = audioRect.x - clear;
   const ax1 = audioRect.x + audioRect.w + clear;
@@ -618,30 +670,61 @@ function subdivide(audioRect, anchor, G) {
   const addRow = (y, h, side) => {
     if (h <= 0.09) return;
     const third = (right - left) / 3;
-    addPocket({ x: left, y, w: third - G, h, side });
-    addPocket({ x: left + third, y, w: third - G, h, side });
-    addPocket({ x: left + third * 2, y, w: third, h, side });
+    addPocket({ x: left,              y, w: third - G,     h, side });
+    addPocket({ x: left + third,      y, w: third - G,     h, side });
+    addPocket({ x: left + third * 2,  y, w: right - (left + third * 2), h, side });
   };
 
   const addColumn = (x, w, side) => {
     if (w <= 0.10) return;
     const third = (bottom - top) / 3;
-    addPocket({ x, y: top, w, h: third - G, side });
-    addPocket({ x, y: top + third, w, h: third - G, side });
-    addPocket({ x, y: top + third * 2, w, h: third, side });
+    addPocket({ x, y: top,              w, h: third - G,     side });
+    addPocket({ x, y: top + third,      w, h: third - G,     side });
+    addPocket({ x, y: top + third * 2,  w, h: bottom - (top + third * 2), side });
   };
 
-  addRow(top, ay0 - top, 'top');
-  addRow(ay1, bottom - ay1, 'bottom');
-  addColumn(left, ax0 - left, 'left');
-  addColumn(ax1, right - ax1, 'right');
+  addRow(top,  ay0 - top,    'top');
+  addRow(ay1,  bottom - ay1, 'bottom');
+  addColumn(left, ax0 - left,   'left');
+  addColumn(ax1,  right - ax1,  'right');
 
-  pockets.forEach(pocket => {
+  // ── FIX: trim pockets that overlap button exclusion zones ─────────────────
+  // Rather than discarding them entirely (which starves the layout), we shrink
+  // them away from the button. If what remains is too small, discard.
+  const trimmedPockets = [];
+  for (const pocket of pockets) {
+    let { x, y, w, h, side, score } = pocket;
+    let valid = true;
+    for (const ex of exclusions) {
+      if (!rectsOverlap({ x, y, w, h }, ex)) continue;
+      // Determine which edge of the pocket is closest to the button center
+      const exCx = ex.x + ex.w / 2;
+      const exCy = ex.y + ex.h / 2;
+      const pCx  = x + w / 2;
+      const pCy  = y + h / 2;
+      // Trim the pocket edge that faces the button
+      if (Math.abs(pCx - exCx) > Math.abs(pCy - exCy)) {
+        // horizontal trim
+        if (pCx > exCx) { const newX = ex.x + ex.w + G; w = (x + w) - newX; x = newX; }
+        else             { w = ex.x - G - x; }
+      } else {
+        // vertical trim
+        if (pCy > exCy) { const newY = ex.y + ex.h + G; h = (y + h) - newY; y = newY; }
+        else             { h = ex.y - G - y; }
+      }
+      if (w < 0.10 || h < 0.09) { valid = false; break; }
+    }
+    if (valid) trimmedPockets.push({ x, y, w, h, side });
+  }
+
+  trimmedPockets.forEach(pocket => {
     pocket.score = pocket.w * pocket.h * rand(0.72, 1.28);
   });
-  pockets.sort((a, b) => b.score - a.score);
+  trimmedPockets.sort((a, b) => b.score - a.score);
 
-  return pockets.length ? pockets.slice(0, 9) : splitStrip({ x: G, y: G, w: 1 - 2 * G, h: 1 - 2 * G }, 'h');
+  return trimmedPockets.length
+    ? trimmedPockets.slice(0, 9)
+    : splitStrip({ x: G, y: G, w: 1 - 2 * G, h: 1 - 2 * G }, 'h');
 }
 
 function splitStrip(strip, axis) {
@@ -670,88 +753,93 @@ function splitStrip(strip, axis) {
 
 
 // ═══════════════════════════════════════════════════════════════════════════
-// ENGINE 4A: TEXT FRAGMENT ACTUATOR — metabolizes the corpus into glyphs
+// ENGINE 4A: TEXT FRAGMENT ACTUATOR — metabolizes the corpus into fragments
 // ═══════════════════════════════════════════════════════════════════════════
-// the entire corpus is signal — fuel. the actuator slices word-windows
-// freely from it and gives back three glyphs per room. most land between
-// 11 and 33 characters; a small minority are longer and quieter.
-//
-// future hook: when an LLM is wired in, the actuator can rearrange or
-// compose new glyphs in this length band, using the corpus as inspiration
-// rather than only as source. same metabolic shape; richer digestion.
+// Picks complete sentences (or natural multi-sentence runs) from the corpus.
+// Prefers fragments that begin at a sentence boundary and end cleanly.
+// Short fragments: 40–120 chars. Long fragments: 121–260 chars.
 
-const GLYPH_MIN = 46;
-const GLYPH_MAX = 118;
-const LONG_GLYPH_MIN = 119;
-const LONG_GLYPH_MAX = 230;
-const recentSlices = [];
-const SLICE_MEMORY = 12;
+const FRAG_MIN      = 40;
+const FRAG_MAX      = 120;
+const LONG_FRAG_MIN = 121;
+const LONG_FRAG_MAX = 260;
+const recentFragments = [];
+const FRAG_MEMORY = 14;
 
-function cleanGlyphText(text) {
-  return String(text)
-    .replace(/[‘’]/g, "'")
-    .replace(/[^A-Za-z0-9'\s]/g, ' ')
+// Split a corpus entry into individual sentences.
+function splitSentences(text) {
+  // Normalize smart quotes and strip non-printable chars
+  text = String(text)
+    .replace(/['']/g, "'")
+    .replace(/[""]/g, '"')
+    .replace(/[^\x20-\x7E\s]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+  // Split on sentence-ending punctuation followed by whitespace or end-of-string
+  // Keep the punctuation attached to the preceding sentence
+  const raw = text.split(/(?<=[.!?])\s+/);
+  return raw.map(s => s.trim()).filter(s => s.length > 0);
 }
 
-function sliceGlyph(text, minLen = GLYPH_MIN, maxLen = GLYPH_MAX) {
-  text = cleanGlyphText(text);
-  if (text.length < minLen) return null;
-  if (text.length <= maxLen) return text;
-
-  const words = text.split(/\s+/);
-  for (let attempt = 0; attempt < 24; attempt++) {
-    const start = Math.floor(Math.random() * words.length);
-    let end = start + 1;
-    while (end <= words.length) {
-      const candidate = words.slice(start, end).join(' ');
-      if (candidate.length > maxLen) {
-        const stepBack = cleanGlyphText(words.slice(start, end - 1).join(' '));
-        if (stepBack.length >= minLen) return stepBack;
-        break;
-      }
-      end++;
+// Build a pool of sentence-boundary-aligned fragments from the entire corpus.
+// Called once at startup; result is cached.
+let _fragmentPool = null;
+function buildFragmentPool() {
+  if (_fragmentPool) return _fragmentPool;
+  const short = [];
+  const long  = [];
+  for (const entry of CORPUS) {
+    const sentences = splitSentences(entry);
+    // Single sentences
+    for (const s of sentences) {
+      const len = s.length;
+      if (len >= FRAG_MIN  && len <= FRAG_MAX)      short.push(s);
+      if (len >= LONG_FRAG_MIN && len <= LONG_FRAG_MAX) long.push(s);
     }
-    const tail = cleanGlyphText(words.slice(start, Math.min(end, words.length)).join(' '));
-    if (tail.length >= minLen && tail.length <= maxLen) return tail;
+    // Consecutive sentence pairs (for medium-length fragments)
+    for (let i = 0; i < sentences.length - 1; i++) {
+      const pair = sentences[i] + ' ' + sentences[i + 1];
+      const len  = pair.length;
+      if (len >= FRAG_MIN  && len <= FRAG_MAX)      short.push(pair);
+      if (len >= LONG_FRAG_MIN && len <= LONG_FRAG_MAX) long.push(pair);
+    }
+    // Three consecutive sentences
+    for (let i = 0; i < sentences.length - 2; i++) {
+      const trio = sentences[i] + ' ' + sentences[i+1] + ' ' + sentences[i+2];
+      const len  = trio.length;
+      if (len >= LONG_FRAG_MIN && len <= LONG_FRAG_MAX) long.push(trio);
+    }
   }
-  return null;
+  _fragmentPool = { short, long };
+  return _fragmentPool;
 }
 
-function pickGlyph(longForm = false) {
-  const minLen = longForm ? LONG_GLYPH_MIN : GLYPH_MIN;
-  const maxLen = longForm ? LONG_GLYPH_MAX : GLYPH_MAX;
-  for (let attempts = 0; attempts < 60; attempts++) {
-    const source = CORPUS[Math.floor(Math.random() * CORPUS.length)];
-    const glyph = sliceGlyph(source, minLen, maxLen);
-    if (!glyph) continue;
-    if (recentSlices.includes(glyph)) continue;
-    recentSlices.push(glyph);
-    if (recentSlices.length > SLICE_MEMORY) recentSlices.shift();
-    return { text: glyph, longForm };
+function pickFragment(longForm = false) {
+  const pool = buildFragmentPool();
+  const source = longForm ? pool.long : pool.short;
+  // Fallback: if the requested pool is empty, use the other
+  const active = source.length ? source : (longForm ? pool.short : pool.long);
+  if (!active.length) return { text: 'signal', longForm: false };
+
+  for (let attempt = 0; attempt < 60; attempt++) {
+    const text = active[Math.floor(Math.random() * active.length)];
+    if (recentFragments.includes(text)) continue;
+    recentFragments.push(text);
+    if (recentFragments.length > FRAG_MEMORY) recentFragments.shift();
+    return { text, longForm };
   }
-  for (let i = 0; i < 30; i++) {
-    const g = sliceGlyph(CORPUS[Math.floor(Math.random() * CORPUS.length)]);
-    if (g) return { text: g, longForm: false };
-  }
-  return { text: 'breath', longForm: false };
+  // Give up on recency check
+  return { text: active[Math.floor(Math.random() * active.length)], longForm };
 }
 
 function actuateFragments() {
-  return [0, 1, 2].map(() => pickGlyph(Math.random() < 0.32));
+  return [0, 1, 2].map(() => pickFragment(Math.random() < 0.28));
 }
 
 
 // ═══════════════════════════════════════════════════════════════════════════
-// ENGINE 4B: COHERENCE CLEARANCE CRYSTALLIZER -- clears room pressure into usable cells
+// ENGINE 4B: COHERENCE CLEARANCE CRYSTALLIZER
 // ═══════════════════════════════════════════════════════════════════════════
-// receives the called zone, background, transmission, glyphs, and open cells.
-//
-// it balances spacing before the artifact assigner handles visible form.
-//
-// close glyphs tend smaller and clearer; edge glyphs can carry longer,
-// quieter residue.
 
 const FONTS = [
   "'Georgia', 'Times New Roman', serif",
@@ -775,9 +863,9 @@ function normalizedControlRects() {
   return [...document.querySelectorAll('#sanctuary-btn, [data-shift-control]')]
     .map(el => {
       const rect = el.getBoundingClientRect();
-      const x = clamp((rect.left - margin) / W, 0, 1);
-      const y = clamp((rect.top - margin) / H, 0, 1);
-      const x2 = clamp((rect.right + margin) / W, 0, 1);
+      const x  = clamp((rect.left   - margin) / W, 0, 1);
+      const y  = clamp((rect.top    - margin) / H, 0, 1);
+      const x2 = clamp((rect.right  + margin) / W, 0, 1);
       const y2 = clamp((rect.bottom + margin) / H, 0, 1);
       return { x, y, w: x2 - x, h: y2 - y };
     })
@@ -798,56 +886,61 @@ function overlapRatio(a, b) {
   return overlapArea(a, b) / Math.min(rectArea(a), rectArea(b));
 }
 
-function inhabitedEdgePressure(cell, controlRects = []) {
-  const center = centerOf(cell);
-  let pressure = 0;
-
-  // Fixed controls are part of the room's body. This is a tilt, not a wall.
-  if (center.x < 0.18 && center.y > 0.34 && center.y < 0.66) pressure += 0.22;
-  if (center.x > 0.68 && center.y > 0.70) pressure += 0.30;
-  if (center.x > 0.72 && center.y < 0.18) pressure += 0.14;
-
+function controlOverlapPressure(cell, controlRects) {
+  // Hard penalty: text cells must not overlap buttons.
+  // Returns a 0–1 pressure value; anything > 0 means overlap exists.
   const cellArea = rectArea(cell);
-  controlRects.forEach(rect => {
-    const overlap = overlapArea(cell, rect) / cellArea;
-    if (overlap > 0) pressure += 0.34 + overlap * 1.8;
-  });
-
-  return clamp(pressure, 0, 1.2);
+  let pressure = 0;
+  for (const cr of controlRects) {
+    const ov = overlapArea(cell, cr) / cellArea;
+    if (ov > 0) pressure += 0.6 + ov * 2.4;
+  }
+  return clamp(pressure, 0, 3);
 }
 
 function readCellPressure(cell, audioRect, placed, controlRects) {
-  const center = centerOf(cell);
+  const center      = centerOf(cell);
   const audioCenter = centerOf(audioRect);
-  const audioDistance = clamp(Math.hypot(center.x - audioCenter.x, center.y - audioCenter.y) / 0.72, 0, 1);
-  const nearestGlyph = placed.length
+  const audioDistance   = clamp(Math.hypot(center.x - audioCenter.x, center.y - audioCenter.y) / 0.72, 0, 1);
+  const nearestGlyph    = placed.length
     ? Math.min(...placed.map(other => Math.hypot(center.x - other.center.x, center.y - other.center.y)))
     : 1;
   const relationDistance = clamp(nearestGlyph / 0.34, 0, 1);
-  const edgeDepth = clamp(Math.min(cell.x, cell.y, 1 - cell.x - cell.w, 1 - cell.y - cell.h) / 0.18, 0, 1);
-  const occupiedEdge = inhabitedEdgePressure(cell, controlRects);
+  const edgeDepth        = clamp(Math.min(cell.x, cell.y, 1 - cell.x - cell.w, 1 - cell.y - cell.h) / 0.18, 0, 1);
+  const controlPressure  = controlOverlapPressure(cell, controlRects);
 
-  return { center, audioDistance, relationDistance, edgeDepth, occupiedEdge };
+  return { center, audioDistance, relationDistance, edgeDepth, controlPressure };
 }
 
 function chooseCrystallizedCell(glyph, candidates, placed, field) {
-  let best = candidates[0];
+  let best      = candidates[0];
   let bestScore = -Infinity;
 
   candidates.forEach((cell, index) => {
-    const pressure = readCellPressure(cell, field.audioRect, placed, field.controlRects);
-    const area = cell.w * cell.h;
-    const sameSideCount = placed.filter(other => other.side === cell.side).length;
+    const pressure         = readCellPressure(cell, field.audioRect, placed, field.controlRects);
+    const area             = cell.w * cell.h;
+    const sameSideCount    = placed.filter(other => other.side === cell.side).length;
     const collisionPressure = placed.reduce((max, other) => Math.max(max, overlapRatio(cell, other.rect)), 0);
-    const sideAffinity = field.clusterMode && cell.side === field.clusterSide ? 0.36 : 0;
-    const spreadScore = field.clusterMode ? 1 - Math.abs(pressure.relationDistance - 0.42) : pressure.relationDistance;
+    const sideAffinity     = field.clusterMode && cell.side === field.clusterSide ? 0.36 : 0;
+    const spreadScore      = field.clusterMode
+      ? 1 - Math.abs(pressure.relationDistance - 0.42)
+      : pressure.relationDistance;
     const lengthFit = glyph.longForm
       ? pressure.audioDistance + (1 - pressure.edgeDepth) * 0.2
       : 1 - Math.abs(pressure.audioDistance - 0.48);
-    const sidePenalty = !field.clusterMode && sameSideCount ? sameSideCount * 0.34 : 0;
-    const roomPressure = pressure.occupiedEdge * (field.isCompact ? 1.65 : 1.05);
-    const collisionPenalty = collisionPressure * 4.4 + (collisionPressure > 0.18 ? 2.2 : 0);
-    const score = area * 1.35 + spreadScore * 0.9 + lengthFit * 0.5 + sideAffinity - sidePenalty - roomPressure - collisionPenalty + rand(-0.08, 0.08);
+    const sidePenalty      = !field.clusterMode && sameSideCount ? sameSideCount * 0.34 : 0;
+    // ── FIX: hard veto for button overlap; strong penalty for cell-cell collision ──
+    const controlPenalty   = pressure.controlPressure * 8.0;
+    const collisionPenalty = collisionPressure * 5.5 + (collisionPressure > 0.15 ? 3.0 : 0);
+
+    const score = area * 1.35
+      + spreadScore * 0.9
+      + lengthFit   * 0.5
+      + sideAffinity
+      - sidePenalty
+      - controlPenalty
+      - collisionPenalty
+      + rand(-0.06, 0.06);
 
     if (score > bestScore) {
       bestScore = score;
@@ -859,30 +952,30 @@ function chooseCrystallizedCell(glyph, candidates, placed, field) {
 }
 
 function coherenceClearanceCrystallizer({ zone, background, tonal, fragments }) {
-  const fallback = [{ x: 0.06, y: 0.16, w: 0.88, h: 0.68, side: 'field' }];
+  const fallback  = [{ x: 0.06, y: 0.16, w: 0.88, h: 0.68, side: 'field' }];
   const available = tonal.others.length ? [...tonal.others] : fallback;
   const isCompact = window.innerWidth < 720 || window.innerHeight < 520;
-  const clusterMode = Math.random() < (isCompact ? 0.08 : 0.14);
-  const clusterSide = clusterMode ? pickFrom(available).side : null;
+  const clusterMode  = Math.random() < (isCompact ? 0.08 : 0.14);
+  const clusterSide  = clusterMode ? pickFrom(available).side : null;
   const field = {
     zone,
     background,
-    media: tonal.item,
-    audioRect: tonal.rect,
-    anchor: tonal.anchor,
+    media:       tonal.item,
+    audioRect:   tonal.rect,
+    anchor:      tonal.anchor,
     controlRects: normalizedControlRects(),
     isCompact,
     clusterMode,
     clusterSide
   };
   const placed = [];
-  const cells = [];
+  const cells  = [];
   fragments.forEach((fragment, index) => {
     if (!available.length) available.push(...fallback);
     const cell = chooseCrystallizedCell(fragment, available, placed, field);
-    const withoutSelected = available.filter((_, candidateIndex) => candidateIndex !== cell.candidateIndex);
-    const separated = withoutSelected.filter(candidate => overlapRatio(candidate, cell) < 0.08);
-    const remaining = fragments.length - index - 1;
+    const withoutSelected = available.filter((_, i) => i !== cell.candidateIndex);
+    const separated       = withoutSelected.filter(c => overlapRatio(c, cell) < 0.08);
+    const remaining       = fragments.length - index - 1;
     available.splice(0, available.length, ...(separated.length >= remaining ? separated : withoutSelected));
     placed.push({ center: cell.center, side: cell.side, rect: cell });
     cells.push(cell);
@@ -891,62 +984,70 @@ function coherenceClearanceCrystallizer({ zone, background, tonal, fragments }) 
   return { ...field, cells };
 }
 
-// ENGINE 4C: MORPHOLOGICAL ARTIFACT ASSIGNER -- renders fragments into form
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ENGINE 4C: MORPHOLOGICAL ARTIFACT ASSIGNER — renders fragments into form
+// ═══════════════════════════════════════════════════════════════════════════
 function targetTactile(glyphs, field) {
   const palette = ZONE_PALETTES[field.zone];
-
-  // canvas in pixels — sizing needs real dimensions
   const W = window.innerWidth;
   const H = window.innerHeight;
 
   // composition rolls — once per room
-  const deepIdx = Math.floor(Math.random() * 3);
+  const deepIdx   = Math.floor(Math.random() * 3);
   const rotateIdx = Math.random() < 0.22 ? Math.floor(Math.random() * 3) : -1;
+
   return glyphs.map((glyph, i) => {
     const cell = field.cells[i] || field.cells[field.cells.length - 1];
 
-    // ─── size: emerges from filling the cell's actual area ───
-    // each char ≈ 0.55em wide × 1.4em tall ≈ 0.77 em²
-    const cellPxW = Math.max(1, cell.w * W);
-    const cellPxH = Math.max(1, cell.h * H);
+    const cellPxW    = Math.max(1, cell.w * W);
+    const cellPxH    = Math.max(1, cell.h * H);
     const cellPxArea = cellPxW * cellPxH;
-    const text = glyph.text;
-    const words = text.split(/\s+/).filter(Boolean);
-    const longest = words.reduce((max, word) => Math.max(max, word.length), 1);
+    const text       = glyph.text;
+    const words      = text.split(/\s+/).filter(Boolean);
+    const longest    = words.reduce((max, word) => Math.max(max, word.length), 1);
+
     const audioCenterX = field.audioRect.x + field.audioRect.w / 2;
-    const cellCenterX = cell.x + cell.w / 2;
-    const distance = cell.audioDistance;
-    const edgeDepth = cell.edgeDepth;
-    const nearSong = 1 - distance;
-    const edgeQuiet = 1 - edgeDepth;
-    const lineHeight = 1.14 + Math.random() * 0.22;
-    const letterSpacing = Math.random() * (glyph.longForm ? 0.022 : 0.044);
-    const targetFill = glyph.longForm ? rand(0.065, 0.11) : rand(0.09, 0.16);
-    const areaSize = Math.sqrt((cellPxArea * targetFill) / Math.max(text.length * 0.72, 1));
-    const wordFit = (cellPxW * 0.86) / Math.max(longest * (0.56 + letterSpacing), 1);
-    const heightFit = (cellPxH * 0.78) / (lineHeight * (glyph.longForm ? 5.4 : 3.6));
+    const cellCenterX  = cell.x + cell.w / 2;
+    const distance     = cell.audioDistance;
+    const edgeDepth    = cell.edgeDepth;
+    const nearSong     = 1 - distance;
+    const edgeQuiet    = 1 - edgeDepth;
+
+    const lineHeight     = 1.14 + Math.random() * 0.22;
+    const letterSpacing  = Math.random() * (glyph.longForm ? 0.022 : 0.044);
+    const targetFill     = glyph.longForm ? rand(0.065, 0.11) : rand(0.09, 0.16);
+    const areaSize       = Math.sqrt((cellPxArea * targetFill) / Math.max(text.length * 0.72, 1));
+    const wordFit        = (cellPxW * 0.86) / Math.max(longest * (0.56 + letterSpacing), 1);
+    const heightFit      = (cellPxH * 0.78) / (lineHeight * (glyph.longForm ? 5.4 : 3.6));
     let fontSize = Math.min(areaSize, wordFit, heightFit, glyph.longForm ? 30 : 36);
-    fontSize *= 0.78 + distance * 0.34 - (field.clusterMode ? 0.08 : 0) - Math.min(cell.occupiedEdge, 0.8) * 0.12;
+    fontSize *= 0.78 + distance * 0.34 - (field.clusterMode ? 0.08 : 0);
     fontSize = clamp(fontSize, 12, glyph.longForm ? 30 : 36);
+
     const align = cellCenterX < audioCenterX - 0.12 ? 'right'
       : cellCenterX > audioCenterX + 0.12 ? 'left'
       : pickFrom(ALIGNS);
-    const opacityAgency = rand(-0.08, 0.08);
-    const relationQuiet = field.clusterMode ? 0.06 : (1 - cell.relationDistance) * 0.10;
-    const opacity = clamp(0.68 + nearSong * 0.22 - edgeQuiet * 0.10 - relationQuiet - (glyph.longForm ? 0.09 : 0) + opacityAgency, 0.52, 0.98);
+
+    const opacityAgency  = rand(-0.08, 0.08);
+    const relationQuiet  = field.clusterMode ? 0.06 : (1 - cell.relationDistance) * 0.10;
+    const opacity = clamp(
+      0.68 + nearSong * 0.22 - edgeQuiet * 0.10 - relationQuiet
+           - (glyph.longForm ? 0.09 : 0) + opacityAgency,
+      0.52, 0.98
+    );
 
     return {
       fragment: glyph,
       cell,
       style: {
-        fontFamily: pickFrom(FONTS),
-        fontSize: Math.round(fontSize) + 'px',
-        color: pickFrom(palette),
-        opacity: i === deepIdx ? Math.max(0.52, opacity - 0.10) : opacity,
-        textAlign: align,
+        fontFamily:    pickFrom(FONTS),
+        fontSize:      Math.round(fontSize) + 'px',
+        color:         pickFrom(palette),
+        opacity:       i === deepIdx ? Math.max(0.52, opacity - 0.10) : opacity,
+        textAlign:     align,
         letterSpacing: letterSpacing.toFixed(3) + 'em',
-        lineHeight: lineHeight.toFixed(2),
-        transform: i === rotateIdx ? `rotate(${((Math.random() - 0.5) * 8).toFixed(1)}deg)` : 'none'
+        lineHeight:    lineHeight.toFixed(2),
+        transform:     i === rotateIdx ? `rotate(${((Math.random() - 0.5) * 8).toFixed(1)}deg)` : 'none'
       }
     };
   });
@@ -956,13 +1057,13 @@ function targetTactile(glyphs, field) {
 // ═══════════════════════════════════════════════════════════════════════════
 // RENDER — composing the room
 // ═══════════════════════════════════════════════════════════════════════════
-const roomEl = document.getElementById('room');
-const bgEl = document.getElementById('bg');
+const roomEl   = document.getElementById('room');
+const bgEl     = document.getElementById('bg');
 const glitchEl = document.getElementById('glitch-veil');
-const zoneEl = document.getElementById('zone-indicator');
-let bgTimer = null;
-let currentMediaEl = null;
-let renderNonce = 0;
+const zoneEl   = document.getElementById('zone-indicator');
+let bgTimer          = null;
+let currentMediaEl   = null;
+let renderNonce      = 0;
 let autoplayUnlocked = false;
 let allowAutoAdvance = false;
 let visitorStoppedChain = false;
@@ -972,34 +1073,24 @@ let pendingPlayTimer = null;
 function pct(n) { return (n * 100).toFixed(2) + '%'; }
 
 function clearPlaybackTimers() {
-  if (autoAdvanceTimer) {
-    clearTimeout(autoAdvanceTimer);
-    autoAdvanceTimer = null;
-  }
-  if (pendingPlayTimer) {
-    clearTimeout(pendingPlayTimer);
-    pendingPlayTimer = null;
-  }
+  if (autoAdvanceTimer) { clearTimeout(autoAdvanceTimer); autoAdvanceTimer = null; }
+  if (pendingPlayTimer)  { clearTimeout(pendingPlayTimer);  pendingPlayTimer  = null; }
 }
 
-function setAutoAdvanceEnabled(enabled) {
-  allowAutoAdvance = enabled;
-}
+function setAutoAdvanceEnabled(enabled) { allowAutoAdvance = enabled; }
 
-function unlockAutoplayChain() {
-  resumeAutoplayChain();
-}
+function unlockAutoplayChain() { resumeAutoplayChain(); }
 
 function resumeAutoplayChain() {
   visitorStoppedChain = false;
-  autoplayUnlocked = true;
-  allowAutoAdvance = true;
+  autoplayUnlocked    = true;
+  allowAutoAdvance    = true;
 }
 
 function stopAutoplayChain() {
   visitorStoppedChain = true;
-  autoplayUnlocked = false;
-  allowAutoAdvance = false;
+  autoplayUnlocked    = false;
+  allowAutoAdvance    = false;
   clearPlaybackTimers();
 }
 
@@ -1008,7 +1099,7 @@ function stopCurrentMedia() {
   if (!currentMediaEl) return;
   currentMediaEl.onended = null;
   currentMediaEl.onpause = null;
-  currentMediaEl.onplay = null;
+  currentMediaEl.onplay  = null;
   currentMediaEl.onloadedmetadata = null;
   currentMediaEl.onerror = null;
   if (typeof currentMediaEl.pause === 'function') currentMediaEl.pause();
@@ -1038,19 +1129,15 @@ function renderRoom(options = {}) {
   const { source = 'manual' } = options;
   renderNonce += 1;
   const roomNonce = renderNonce;
-  if (source === 'manual') {
-    unlockAutoplayChain();
-  }
-  if (source === 'init') {
-    allowAutoAdvance = true;
-  }
+  if (source === 'manual') unlockAutoplayChain();
+  if (source === 'init')   allowAutoAdvance = true;
   stopCurrentMedia();
 
   // clear previous cells (keep bg element)
   [...roomEl.querySelectorAll('.cell')].forEach(el => el.remove());
 
   // 1. call the zone
-  const zone = callZone();
+  const zone  = callZone();
   const color = ZONE_COLORS[zone];
   zoneEl.textContent = zone;
   zoneEl.style.color = color;
@@ -1064,10 +1151,10 @@ function renderRoom(options = {}) {
     requestAnimationFrame(() => { bgEl.style.opacity = bg.opacity; });
   }, 300);
 
-  // 3. Tonal Trinity Tradition — media cell + 3 remaining cells
+  // 3. Tonal Trinity Tradition — media cell + leftover pockets
   const tonal = tonalTrinityTradition(zone);
 
-  // audio cell
+  // media cell
   const audioCell = document.createElement('div');
   audioCell.className = 'cell cell-audio';
   Object.assign(audioCell.style, {
@@ -1123,14 +1210,9 @@ function renderRoom(options = {}) {
     }
   }
 
-  // 4. text — three fragments placed in the open space around the audio
-  const fragments = actuateFragments();
-  const field = coherenceClearanceCrystallizer({
-    zone,
-    background: bg.item,
-    tonal,
-    fragments
-  });
+  // 4. text — three fragments placed in the open space around the media
+  const fragments  = actuateFragments();
+  const field      = coherenceClearanceCrystallizer({ zone, background: bg.item, tonal, fragments });
   const assignments = targetTactile(fragments, field);
 
   assignments.forEach(({ fragment, cell: rect, style }, i) => {
@@ -1138,12 +1220,13 @@ function renderRoom(options = {}) {
     textCell.className = 'cell cell-text';
 
     Object.assign(textCell.style, {
-      left: pct(rect.x),
-      top: pct(rect.y),
-      width: pct(rect.w),
+      left:   pct(rect.x),
+      top:    pct(rect.y),
+      width:  pct(rect.w),
       height: pct(rect.h),
       padding: rect.w < 0.16 ? 'clamp(14px, 2vmin, 30px)' : 'clamp(14px, 2.2vmin, 34px)',
-      justifyContent: style.textAlign === 'right' ? 'flex-end' : style.textAlign === 'center' ? 'center' : 'flex-start',
+      justifyContent: style.textAlign === 'right' ? 'flex-end'
+                    : style.textAlign === 'center' ? 'center' : 'flex-start',
       ...style,
       transitionDelay: `${120 + i * 110}ms`
     });
@@ -1154,14 +1237,12 @@ function renderRoom(options = {}) {
     textCell.appendChild(fragEl);
     roomEl.appendChild(textCell);
 
-    requestAnimationFrame(() => {
-      textCell.classList.add('visible');
-    });
+    requestAnimationFrame(() => { textCell.classList.add('visible'); });
   });
 }
 
 // ── controls & navigation ─────────────────────────────────────────────────
-const sanctuaryEl = document.getElementById('sanctuary');
+const sanctuaryEl  = document.getElementById('sanctuary');
 const sanctuaryBtn = document.getElementById('sanctuary-btn');
 
 document.getElementById('return-link').addEventListener('click', event => {
@@ -1182,6 +1263,7 @@ document.querySelectorAll('[data-shift-control]').forEach(button => {
     renderRoom({ source: 'manual' });
   });
 });
+
 window.addEventListener('resize', () => renderRoom({ source: autoplayUnlocked ? 'auto' : 'resize' }));
 
 // room is the landing — first room renders immediately
